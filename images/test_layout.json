@@ -1,0 +1,20 @@
+{
+  "table": "C:/Users/russell/Documents/gitProjects/pool-projector/images/Table.png",
+  "ball_scale": 0.33,
+  "balls": [
+    {
+      "name": "OneBall",
+      "x": 314,
+      "y": 220,
+      "visible": true,
+      "path": "C:/Users/russell/Documents/gitProjects/pool-projector/images/OneBall.png"
+    },
+    {
+      "name": "TwoBall",
+      "x": 361,
+      "y": 343,
+      "visible": true,
+      "path": "C:/Users/russell/Documents/gitProjects/pool-projector/images/TwoBall.png"
+    }
+  ]
+}
