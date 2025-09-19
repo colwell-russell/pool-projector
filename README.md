@@ -43,12 +43,15 @@ python3 pool_table_board.py
 
 ### Steps
 1. Load a table image (`File → Load Table Image…`).
+   - File dialogs default to the project's `images/` folder for quick access to assets.
 2. Load ball images (`File → Load Ball Images…`). Drag to place.
 3. Use checkboxes to toggle ball visibility.
 4. Adjust **Ball Size (%)** with the slider.
 5. Switch to **Drawing Tools** to add lines/arrows.
 6. Save or load layouts to preserve work.
+   - File dialogs default to the project's `layouts/` folder; add your presets there for quick access.
 7. Select a **Projector Display** and open a projector window.
+   - Press `Esc` inside the projector window to close it if you pick the wrong display.
 
 ## Multi-Monitor Setup on Ubuntu
 
