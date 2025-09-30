@@ -914,22 +914,37 @@ class Sidebar(tk.Frame):
         self.ball_vars: Dict[str, tk.BooleanVar] = {}
         self.projector: Optional[ProjectorWindow] = None
 
+        # Scrollable content container
+        self._scroll_canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        self._scroll_canvas.pack(side="left", fill="both", expand=True)
+        self._vscroll = ttk.Scrollbar(self, orient="vertical", command=self._scroll_canvas.yview)
+        self._vscroll.pack(side="right", fill="y")
+        self._scroll_canvas.configure(yscrollcommand=self._vscroll.set)
+
+        self.content = tk.Frame(self._scroll_canvas)
+        self._content_window = self._scroll_canvas.create_window((0, 0), window=self.content, anchor="nw")
+
+        self.content.bind("<Configure>", self._on_scroll_content_configure)
+        self._scroll_canvas.bind("<Configure>", self._on_scroll_canvas_configure)
+
+        body = self.content
+
         # File controls
-        self.btn_load_table = tk.Button(self, text="Load Table Image...", command=self.load_table_dialog)
-        self.btn_load_balls = tk.Button(self, text="Load Ball Images...", command=self.load_balls_dialog)
-        self.btn_save_layout = tk.Button(self, text="Save Layout...", command=self.save_layout_dialog)
-        self.btn_load_layout = tk.Button(self, text="Load Layout...", command=self.load_layout_dialog)
+        self.btn_load_table = tk.Button(body, text="Load Table Image...", command=self.load_table_dialog)
+        self.btn_load_balls = tk.Button(body, text="Load Ball Images...", command=self.load_balls_dialog)
+        self.btn_save_layout = tk.Button(body, text="Save Layout...", command=self.save_layout_dialog)
+        self.btn_load_layout = tk.Button(body, text="Load Layout...", command=self.load_layout_dialog)
 
         self.btn_load_table.pack(fill="x", pady=(6, 3), padx=6)
         self.btn_load_balls.pack(fill="x", pady=3, padx=6)
 
         # Table size slider
-        self.table_size_label = tk.Label(self, text="Table Size (%)", anchor="w", font=("Segoe UI", 10, "bold"))
+        self.table_size_label = tk.Label(body, text="Table Size (%)", anchor="w", font=("Segoe UI", 10, "bold"))
         self.table_size_label.pack(fill="x", padx=8, pady=(10, 0))
 
         self.table_size_var = tk.DoubleVar(value=self.table_canvas.table_scale * 100.0)
-        self.table_size_slider = tk.Scale(self, from_=20, to=200, orient="horizontal",
-                                    variable=self.table_size_var, command=self.on_table_size_change)
+        self.table_size_slider = tk.Scale(body, from_=20, to=200, orient="horizontal",
+                                          variable=self.table_size_var, command=self.on_table_size_change)
         self.table_size_slider.pack(fill="x", padx=10, pady=(4, 6))
 
         # Table offset sliders
@@ -939,83 +954,83 @@ class Sidebar(tk.Frame):
         offset_limit_x = max(400, cw)
         offset_limit_y = max(400, ch)
 
-        tk.Label(self, text="Table Offset (px)", anchor="w", font=("Segoe UI", 10, "bold")).pack(fill="x", padx=8, pady=(0, 0))
+        tk.Label(body, text="Table Offset (px)", anchor="w", font=("Segoe UI", 10, "bold")).pack(fill="x", padx=8, pady=(0, 0))
         self.table_offset_x_var = tk.DoubleVar(value=self.table_canvas.table_offset_x)
         self.table_offset_x_slider = tk.Scale(
-            self, from_=-offset_limit_x, to=offset_limit_x, orient="horizontal", resolution=1,
+            body, from_=-offset_limit_x, to=offset_limit_x, orient="horizontal", resolution=1,
             variable=self.table_offset_x_var, command=self.on_table_offset_x_change, label="Horizontal (X)"
         )
         self.table_offset_x_slider.pack(fill="x", padx=10, pady=(2, 2))
 
         self.table_offset_y_var = tk.DoubleVar(value=self.table_canvas.table_offset_y)
         self.table_offset_y_slider = tk.Scale(
-            self, from_=-offset_limit_y, to=offset_limit_y, orient="horizontal", resolution=1,
+            body, from_=-offset_limit_y, to=offset_limit_y, orient="horizontal", resolution=1,
             variable=self.table_offset_y_var, command=self.on_table_offset_y_change, label="Vertical (Y)"
         )
         self.table_offset_y_slider.pack(fill="x", padx=10, pady=(0, 6))
 
         # Ball size slider
-        self.size_label = tk.Label(self, text="Ball Size (%)", anchor="w", font=("Segoe UI", 10, "bold"))
+        self.size_label = tk.Label(body, text="Ball Size (%)", anchor="w", font=("Segoe UI", 10, "bold"))
         self.size_label.pack(fill="x", padx=8, pady=(4, 0))
 
         self.ball_size_var = tk.DoubleVar(value=self.table_canvas.ball_scale * 100.0)
-        self.size_slider = tk.Scale(self, from_=20, to=200, orient="horizontal",
+        self.size_slider = tk.Scale(body, from_=20, to=200, orient="horizontal",
                                     variable=self.ball_size_var, command=self.on_size_change)
         self.size_slider.pack(fill="x", padx=10, pady=(4, 6))
 
-        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=8, pady=6)
-        tk.Label(self, text="Webcam", anchor="w", font=("Segoe UI", 10, "bold")).pack(fill="x", padx=8)
+        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=8, pady=6)
+        tk.Label(body, text="Webcam", anchor="w", font=("Segoe UI", 10, "bold")).pack(fill="x", padx=8)
 
-        self.webcam_toggle_btn = tk.Button(self, text="Start Webcam", command=self.on_webcam_toggle)
+        self.webcam_toggle_btn = tk.Button(body, text="Start Webcam", command=self.on_webcam_toggle)
         self.webcam_toggle_btn.pack(fill="x", padx=10, pady=(2, 2))
 
         self.webcam_opacity_var = tk.DoubleVar(value=self.table_canvas.webcam_opacity * 100.0)
-        self.webcam_opacity_slider = tk.Scale(self, from_=0, to=100, orient="horizontal", resolution=1,
+        self.webcam_opacity_slider = tk.Scale(body, from_=0, to=100, orient="horizontal", resolution=1,
                                               variable=self.webcam_opacity_var, command=self.on_webcam_opacity_change)
         self.webcam_opacity_slider.pack(fill="x", padx=10, pady=(0, 10))
 
         # Drawing tools
-        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=8, pady=6)
-        tk.Label(self, text="Drawing Tools", anchor="w", font=("Segoe UI", 10, "bold")).pack(fill="x", padx=8)
+        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=8, pady=6)
+        tk.Label(body, text="Drawing Tools", anchor="w", font=("Segoe UI", 10, "bold")).pack(fill="x", padx=8)
 
-        tool_frame = tk.Frame(self)
+        tool_frame = tk.Frame(body)
         tool_frame.pack(fill="x", padx=8, pady=(4, 2))
         tk.Label(tool_frame, text="Tool:").pack(side="left")
         self.tool_choice = tk.StringVar(value="select")
         ttk.Combobox(tool_frame, state="readonly", textvariable=self.tool_choice,
                      values=["select", "line", "arrow"], width=10).pack(side="left", padx=6)
 
-        color_frame = tk.Frame(self)
+        color_frame = tk.Frame(body)
         color_frame.pack(fill="x", padx=8, pady=(4, 2))
         tk.Label(color_frame, text="Color:").pack(side="left")
         self.color_preview = tk.Label(color_frame, text="   ", bg="#ff0000", relief="sunken", width=3)
         self.color_preview.pack(side="left", padx=6)
         tk.Button(color_frame, text="Pick...", command=self.pick_color).pack(side="left")
 
-        width_frame = tk.Frame(self)
+        width_frame = tk.Frame(body)
         width_frame.pack(fill="x", padx=8, pady=(4, 2))
         tk.Label(width_frame, text="Width:").pack(side="left")
         self.width_var = tk.IntVar(value=4)
         tk.Scale(width_frame, from_=1, to=20, orient="horizontal", variable=self.width_var, length=140).pack(side="left", padx=6)
 
-        draw_buttons = tk.Frame(self)
+        draw_buttons = tk.Frame(body)
         draw_buttons.pack(fill="x", padx=8, pady=(4, 8))
         tk.Button(draw_buttons, text="Undo", command=self.undo_drawing).pack(side="left")
         tk.Button(draw_buttons, text="Clear", command=self.clear_drawings).pack(side="left", padx=6)
 
         # Projector display selection
-        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=8, pady=6)
-        self.display_label = tk.Label(self, text="Projector Display", anchor="w", font=("Segoe UI", 10, "bold"))
+        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=8, pady=6)
+        self.display_label = tk.Label(body, text="Projector Display", anchor="w", font=("Segoe UI", 10, "bold"))
         self.display_label.pack(fill="x", padx=8, pady=(2, 0))
 
         self.monitor_list = self._get_monitors_summary()
         default_choice = self.monitor_list[0] if self.monitor_list else "No displays found"
         self.display_choice = tk.StringVar(value=default_choice)
-        self.display_dropdown = ttk.Combobox(self, state="readonly", textvariable=self.display_choice, values=self.monitor_list)
+        self.display_dropdown = ttk.Combobox(body, state="readonly", textvariable=self.display_choice, values=self.monitor_list)
         self.display_dropdown.pack(fill="x", padx=10, pady=(4, 6))
 
-        self.open_proj_btn = tk.Button(self, text="Open Projector Window", command=self.open_projector)
-        self.close_proj_btn = tk.Button(self, text="Close Projector Window", command=self.close_projector)
+        self.open_proj_btn = tk.Button(body, text="Open Projector Window", command=self.open_projector)
+        self.close_proj_btn = tk.Button(body, text="Close Projector Window", command=self.close_projector)
         self.open_proj_btn.pack(fill="x", padx=10, pady=(2, 2))
         self.close_proj_btn.pack(fill="x", padx=10, pady=(2, 10))
 
@@ -1023,14 +1038,19 @@ class Sidebar(tk.Frame):
         self.btn_load_layout.pack(fill="x", pady=3, padx=6)
 
         # Balls list
-        self.sep = tk.Label(self, text="Balls", anchor="w", font=("Segoe UI", 10, "bold"))
+        self.sep = tk.Label(body, text="Balls", anchor="w", font=("Segoe UI", 10, "bold"))
         self.sep.pack(fill="x", padx=8, pady=(12, 0))
 
-        self.ball_frame = tk.Frame(self, bd=1, relief="sunken")
+        self.ball_frame = tk.Frame(body, bd=1, relief="sunken")
         self.ball_frame.pack(fill="both", expand=True, padx=6, pady=6)
 
         # Hook editor for mirroring
         self.table_canvas.add_listener(self._on_canvas_update)
+
+        # Global mouse-wheel bindings restricted in handler
+        self._scroll_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        self._scroll_canvas.bind_all("<Button-4>", self._on_mousewheel)
+        self._scroll_canvas.bind_all("<Button-5>", self._on_mousewheel)
 
         self._update_webcam_controls()
 
@@ -1039,6 +1059,45 @@ class Sidebar(tk.Frame):
         self.on_tool_change()
 
         self.refresh_ball_list()
+        self._schedule_scroll_update()
+
+    def _widget_within_sidebar(self, widget) -> bool:
+        while widget is not None:
+            if widget is self:
+                return True
+            widget = getattr(widget, "master", None)
+        return False
+
+    def _on_mousewheel(self, event):
+        widget = None
+        if hasattr(event, "x_root") and hasattr(event, "y_root"):
+            try:
+                widget = self.winfo_containing(int(event.x_root), int(event.y_root))
+            except tk.TclError:
+                widget = None
+        if widget is None or not self._widget_within_sidebar(widget):
+            return
+        if getattr(event, "delta", 0):
+            self._scroll_canvas.yview_scroll(int(-event.delta / 120), "units")
+        else:
+            num = getattr(event, "num", None)
+            if num == 4:
+                self._scroll_canvas.yview_scroll(-3, "units")
+            elif num == 5:
+                self._scroll_canvas.yview_scroll(3, "units")
+
+    def _on_scroll_content_configure(self, _event=None):
+        bbox = self._scroll_canvas.bbox("all")
+        if bbox is not None:
+            self._scroll_canvas.configure(scrollregion=bbox)
+
+    def _on_scroll_canvas_configure(self, event):
+        self._scroll_canvas.itemconfigure(self._content_window, width=event.width)
+
+    def _schedule_scroll_update(self):
+        if not hasattr(self, "_scroll_canvas"):
+            return
+        self.after_idle(lambda: self._on_scroll_content_configure())
 
     def _update_webcam_controls(self):
         btn_text = "Stop Webcam" if self.table_canvas.webcam_enabled else "Start Webcam"
@@ -1128,6 +1187,8 @@ class Sidebar(tk.Frame):
             cb = tk.Checkbutton(self.ball_frame, text=ball.name, variable=var,
                                 command=lambda b=ball, v=var: self.toggle_ball(b, v))
             cb.pack(anchor="w", padx=6, pady=2)
+
+        self._schedule_scroll_update()
 
     def toggle_ball(self, ball: BallSprite, var: tk.BooleanVar):
         if var.get():
@@ -1285,6 +1346,8 @@ class Sidebar(tk.Frame):
                         self.webcam_opacity_var.set(desired)
                 if "enabled" in webcam_state:
                     self._update_webcam_controls()
+
+        self._schedule_scroll_update()
 
 # ----------------------------- Main App -----------------------------
 
