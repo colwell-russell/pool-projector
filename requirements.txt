@@ -1,2 +1,4 @@
 pillow
 screeninfo
+opencv-python
+

@@ -291,8 +291,6 @@ class PoolTableCanvas(tk.Frame):
 
         self.ball_scale: float = 1.0
         self.table_scale: float = 1.0
-        self.table_offset_x: float = 0.0
-        self.table_offset_y: float = 0.0
         self.webcam_enabled: bool = False
         self.webcam_source: int = 0
         self.webcam_opacity: float = 0.5
@@ -366,16 +364,13 @@ class PoolTableCanvas(tk.Frame):
         pil_scaled = self._table_pil.resize((new_w, new_h), Image.LANCZOS)
         self._table_tk = ImageTk.PhotoImage(pil_scaled)
 
-        # Centered with offsets
-        cx = (cw / 2.0) + self.table_offset_x
-        cy = (ch / 2.0) + self.table_offset_y
-        left = int(round(cx - new_w / 2))
-        top = int(round(cy - new_h / 2))
-        cx_int = int(round(cx))
-        cy_int = int(round(cy))
+        # Centered
+        cx, cy = cw // 2, ch // 2
+        left = cx - new_w // 2
+        top = cy - new_h // 2
         self._table_rect = (left, top, new_w, new_h)
 
-        self._table_item = self.canvas.create_image(cx_int, cy_int, image=self._table_tk, anchor="center", tags=("table",))
+        self._table_item = self.canvas.create_image(cx, cy, image=self._table_tk, anchor="center", tags=("table",))
 
         # Ensure layers/z-order: table at bottom, then drawings, then balls
         for item_id, _ in self.draw_layer.items:
@@ -416,40 +411,6 @@ class PoolTableCanvas(tk.Frame):
 
     def set_table_scale(self, scale: float):
         self.table_scale = clamp(scale, 0.2, 2.0)
-        self._render_table_to_canvas()
-        for b in self.balls:
-            b.place_by_uv(self._table_rect)
-        self.draw_layer.rerender_all()
-        self._position_webcam_item()
-        self._notify()
-
-    def set_table_offset(self, offset_x: Optional[float] = None, offset_y: Optional[float] = None):
-        """Adjust the table position relative to the canvas centre."""
-        cw = self.canvas.winfo_width() or int(self.canvas["width"])
-        ch = self.canvas.winfo_height() or int(self.canvas["height"])
-        changed = False
-        if offset_x is not None:
-            try:
-                target_x = float(offset_x)
-            except (TypeError, ValueError):
-                target_x = self.table_offset_x
-            limit_x = max(cw, 1)
-            new_x = clamp(target_x, -limit_x, limit_x)
-            if abs(new_x - self.table_offset_x) > 1e-3:
-                self.table_offset_x = new_x
-                changed = True
-        if offset_y is not None:
-            try:
-                target_y = float(offset_y)
-            except (TypeError, ValueError):
-                target_y = self.table_offset_y
-            limit_y = max(ch, 1)
-            new_y = clamp(target_y, -limit_y, limit_y)
-            if abs(new_y - self.table_offset_y) > 1e-3:
-                self.table_offset_y = new_y
-                changed = True
-        if not changed:
-            return
         self._render_table_to_canvas()
         for b in self.balls:
             b.place_by_uv(self._table_rect)
@@ -618,7 +579,6 @@ class PoolTableCanvas(tk.Frame):
             "table": self.table_img_path,
             "table_scale": self.table_scale,
             "ball_scale": self.ball_scale,
-            "table_offset": {"x": self.table_offset_x, "y": self.table_offset_y},
             "table_rect": self._table_rect,
             "webcam": {"enabled": self.webcam_enabled, "opacity": self.webcam_opacity, "source": self.webcam_source},
             "balls": [asdict(b.to_state()) for b in self.balls],
@@ -626,24 +586,6 @@ class PoolTableCanvas(tk.Frame):
         }
 
     def restore(self, data: Dict):
-        offset_state = data.get("table_offset", {})
-        cw = self.canvas.winfo_width() or int(self.canvas["width"])
-        ch = self.canvas.winfo_height() or int(self.canvas["height"])
-        if isinstance(offset_state, dict):
-            try:
-                raw_x = float(offset_state.get("x", 0.0))
-            except (TypeError, ValueError):
-                raw_x = 0.0
-            try:
-                raw_y = float(offset_state.get("y", 0.0))
-            except (TypeError, ValueError):
-                raw_y = 0.0
-            self.table_offset_x = clamp(raw_x, -max(cw, 1), max(cw, 1))
-            self.table_offset_y = clamp(raw_y, -max(ch, 1), max(ch, 1))
-        else:
-            self.table_offset_x = 0.0
-            self.table_offset_y = 0.0
-
         table = data.get("table")
         if table and os.path.exists(table):
             self.load_table_image(table)
@@ -932,28 +874,6 @@ class Sidebar(tk.Frame):
                                     variable=self.table_size_var, command=self.on_table_size_change)
         self.table_size_slider.pack(fill="x", padx=10, pady=(4, 6))
 
-        # Table offset sliders
-        canvas_widget = self.table_canvas.canvas
-        cw = canvas_widget.winfo_width() or int(canvas_widget["width"])
-        ch = canvas_widget.winfo_height() or int(canvas_widget["height"])
-        offset_limit_x = max(400, cw)
-        offset_limit_y = max(400, ch)
-
-        tk.Label(self, text="Table Offset (px)", anchor="w", font=("Segoe UI", 10, "bold")).pack(fill="x", padx=8, pady=(0, 0))
-        self.table_offset_x_var = tk.DoubleVar(value=self.table_canvas.table_offset_x)
-        self.table_offset_x_slider = tk.Scale(
-            self, from_=-offset_limit_x, to=offset_limit_x, orient="horizontal", resolution=1,
-            variable=self.table_offset_x_var, command=self.on_table_offset_x_change, label="Horizontal (X)"
-        )
-        self.table_offset_x_slider.pack(fill="x", padx=10, pady=(2, 2))
-
-        self.table_offset_y_var = tk.DoubleVar(value=self.table_canvas.table_offset_y)
-        self.table_offset_y_slider = tk.Scale(
-            self, from_=-offset_limit_y, to=offset_limit_y, orient="horizontal", resolution=1,
-            variable=self.table_offset_y_var, command=self.on_table_offset_y_change, label="Vertical (Y)"
-        )
-        self.table_offset_y_slider.pack(fill="x", padx=10, pady=(0, 6))
-
         # Ball size slider
         self.size_label = tk.Label(self, text="Ball Size (%)", anchor="w", font=("Segoe UI", 10, "bold"))
         self.size_label.pack(fill="x", padx=8, pady=(4, 0))
@@ -1063,20 +983,6 @@ class Sidebar(tk.Frame):
     def on_table_size_change(self, _value):
         scale = self.table_size_var.get() / 100.0
         self.table_canvas.set_table_scale(scale)
-
-    def on_table_offset_x_change(self, value):
-        try:
-            offset = float(value)
-        except (TypeError, ValueError):
-            return
-        self.table_canvas.set_table_offset(offset_x=offset)
-
-    def on_table_offset_y_change(self, value):
-        try:
-            offset = float(value)
-        except (TypeError, ValueError):
-            return
-        self.table_canvas.set_table_offset(offset_y=offset)
 
     def on_tool_change(self, *args):
         mode = self.tool_choice.get()
@@ -1195,8 +1101,6 @@ class Sidebar(tk.Frame):
                 data = json.load(f)
             self.table_canvas.restore(data)
             self.table_size_var.set(self.table_canvas.table_scale * 100.0)
-            self.table_offset_x_var.set(self.table_canvas.table_offset_x)
-            self.table_offset_y_var.set(self.table_canvas.table_offset_y)
             self.webcam_opacity_var.set(self.table_canvas.webcam_opacity * 100.0)
             self.ball_size_var.set(self.table_canvas.ball_scale * 100.0)
         except Exception as e:
@@ -1250,29 +1154,6 @@ class Sidebar(tk.Frame):
             ball_percent = float(state.get("ball_scale", self.table_canvas.ball_scale)) * 100.0
             if abs(self.ball_size_var.get() - ball_percent) > 0.5:
                 self.ball_size_var.set(ball_percent)
-
-            canvas_widget = self.table_canvas.canvas
-            cw = canvas_widget.winfo_width() or int(canvas_widget["width"])
-            ch = canvas_widget.winfo_height() or int(canvas_widget["height"])
-            offset_limit_x = max(400, cw)
-            offset_limit_y = max(400, ch)
-            self.table_offset_x_slider.configure(from_=-offset_limit_x, to=offset_limit_x)
-            self.table_offset_y_slider.configure(from_=-offset_limit_y, to=offset_limit_y)
-
-            offset_state = state.get("table_offset", {})
-            if isinstance(offset_state, dict):
-                try:
-                    desired_x = float(offset_state.get("x", self.table_canvas.table_offset_x))
-                except (TypeError, ValueError):
-                    desired_x = self.table_canvas.table_offset_x
-                try:
-                    desired_y = float(offset_state.get("y", self.table_canvas.table_offset_y))
-                except (TypeError, ValueError):
-                    desired_y = self.table_canvas.table_offset_y
-                if abs(self.table_offset_x_var.get() - desired_x) > 0.5:
-                    self.table_offset_x_var.set(desired_x)
-                if abs(self.table_offset_y_var.get() - desired_y) > 0.5:
-                    self.table_offset_y_var.set(desired_y)
 
             webcam_state = state.get("webcam", {})
             if isinstance(webcam_state, dict):
