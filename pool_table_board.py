@@ -57,8 +57,8 @@ IMAGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
 @dataclass
 class BallState:
     name: str
-    x: float          # canvas pixel position (editor) — retained for backward compat
-    y: float
+    x: Optional[float] = None  # legacy canvas pixel position (editor)
+    y: Optional[float] = None
     visible: bool = True
     path: Optional[str] = None
     u: Optional[float] = None  # normalized table-relative coordinates
@@ -163,19 +163,50 @@ class BallSprite:
         self.move_to(int(x), int(y))
 
     # ----- persistence -----
-    def to_state(self) -> BallState:
+    def to_state(self, table_rect: Tuple[int, int, int, int]) -> BallState:
         x, y = self.position()
+        l, t, w, h = table_rect
+        if w > 0 and h > 0:
+            try:
+                self.u = (x - l) / w
+                self.v = (y - t) / h
+            except ZeroDivisionError:
+                pass
         return BallState(name=self.name, x=x, y=y, visible=self.visible, path=self.img_path, u=self.u, v=self.v)
 
-    def from_state(self, state: BallState, table_rect: Tuple[int, int, int, int]):
-        # Prefer u,v if present; else fallback to x,y -> uv
+    def from_state(
+        self,
+        state: BallState,
+        table_rect: Tuple[int, int, int, int],
+        saved_table_rect: Optional[Tuple[float, float, float, float]] = None,
+    ):
+        # Prefer u,v if present; else fallback to legacy canvas coordinates
         if state.u is not None and state.v is not None:
             self.u = float(state.u)
             self.v = float(state.v)
             self.place_by_uv(table_rect)
         else:
-            # Backward compat: derive u,v from saved x,y
-            self.set_uv_from_canvas_xy(int(state.x), int(state.y), table_rect)
+            applied = False
+            if (
+                saved_table_rect is not None
+                and len(saved_table_rect) == 4
+                and state.x is not None
+                and state.y is not None
+            ):
+                l, t, w, h = saved_table_rect
+                if w and h:
+                    try:
+                        self.u = (float(state.x) - l) / w
+                        self.v = (float(state.y) - t) / h
+                        applied = True
+                    except ZeroDivisionError:
+                        applied = False
+            if not applied and state.x is not None and state.y is not None:
+                self.set_uv_from_canvas_xy(int(state.x), int(state.y), table_rect)
+                applied = True
+            if not applied:
+                self.u = 0.5
+                self.v = 0.5
             self.place_by_uv(table_rect)
         if state.visible:
             self.show()
@@ -621,7 +652,7 @@ class PoolTableCanvas(tk.Frame):
             "table_offset": {"x": self.table_offset_x, "y": self.table_offset_y},
             "table_rect": self._table_rect,
             "webcam": {"enabled": self.webcam_enabled, "opacity": self.webcam_opacity, "source": self.webcam_source},
-            "balls": [asdict(b.to_state()) for b in self.balls],
+            "balls": [asdict(b.to_state(self._table_rect)) for b in self.balls],
             "drawings": self.draw_layer.serialize(),
         }
 
@@ -665,6 +696,14 @@ class PoolTableCanvas(tk.Frame):
         saved_scale = float(data.get("ball_scale", 1.0))
         self.ball_scale = saved_scale
 
+        saved_table_rect: Optional[Tuple[float, float, float, float]] = None
+        raw_saved_rect = data.get("table_rect")
+        if isinstance(raw_saved_rect, (list, tuple)) and len(raw_saved_rect) == 4:
+            try:
+                saved_table_rect = tuple(float(v) for v in raw_saved_rect)
+            except (TypeError, ValueError):
+                saved_table_rect = None
+
         # Clear balls
         for b in self.balls:
             self.canvas.delete(b.item_id)
@@ -680,7 +719,7 @@ class PoolTableCanvas(tk.Frame):
                 ch = self.canvas.winfo_height() or int(self.canvas["height"])
                 cx, cy = cw // 2, ch // 2
                 ball = BallSprite(self.canvas, name, path, cx, cy, self.ball_scale)
-                ball.from_state(BallState(**bstate), self._table_rect)
+                ball.from_state(BallState(**bstate), self._table_rect, saved_table_rect)
                 self.balls.append(ball)
                 self.canvas.tag_raise(ball.item_id)
 
