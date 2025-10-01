@@ -51,6 +51,8 @@ LAYOUTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "layouts"
 os.makedirs(LAYOUTS_DIR, exist_ok=True)
 
 IMAGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
+TOURNAMENTS_DIR = os.path.join(LAYOUTS_DIR, "Tournaments")
+os.makedirs(TOURNAMENTS_DIR, exist_ok=True)
 
 # ----------------------------- Data Models -----------------------------
 
@@ -1388,6 +1390,101 @@ class Sidebar(tk.Frame):
 
         self._schedule_scroll_update()
 
+
+class TournamentBrowser(tk.Frame):
+    """Left pane: browse tournaments, matches, and load shots."""
+
+    def __init__(self, master, on_select_shot: Callable[[str], None], **kwargs):
+        super().__init__(master, **kwargs)
+        self.on_select_shot = on_select_shot
+        self._item_paths: Dict[str, str] = {}
+
+        container = tk.Frame(self)
+        container.pack(fill="both", expand=True)
+
+        self.tree = ttk.Treeview(container, show="tree", selectmode="browse")
+        self.tree.heading("#0", text="Tournaments", anchor="w")
+        self.tree.pack(side="left", fill="both", expand=True)
+
+        self.scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.tree.yview)
+        self.scrollbar.pack(side="right", fill="y")
+        self.tree.configure(yscrollcommand=self.scrollbar.set)
+
+        self.refresh_btn = tk.Button(self, text="Refresh List", command=self.refresh_tree)
+        self.refresh_btn.pack(fill="x", padx=6, pady=6)
+
+        self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
+
+        self.refresh_tree()
+
+    def refresh_tree(self):
+        self.tree.delete(*self.tree.get_children())
+        self._item_paths.clear()
+
+        tournaments = self._discover_tournaments()
+        if not tournaments:
+            placeholder = self.tree.insert("", "end", text="No tournaments found", open=False)
+            self.tree.item(placeholder, tags=("placeholder",))
+            return
+
+        for tournament_name, matches in tournaments:
+            tournament_id = self.tree.insert("", "end", text=tournament_name, open=False)
+            if not matches:
+                empty_id = self.tree.insert(tournament_id, "end", text="(No matches)", open=False)
+                self.tree.item(empty_id, tags=("placeholder",))
+                continue
+            for match_name, shots in matches:
+                match_id = self.tree.insert(tournament_id, "end", text=match_name, open=False)
+                if not shots:
+                    empty_match = self.tree.insert(match_id, "end", text="(No shots)", open=False)
+                    self.tree.item(empty_match, tags=("placeholder",))
+                    continue
+                for shot_name, shot_path in shots:
+                    shot_id = self.tree.insert(match_id, "end", text=shot_name, open=False)
+                    self._item_paths[shot_id] = shot_path
+
+    def _discover_tournaments(self) -> List[Tuple[str, List[Tuple[str, List[Tuple[str, str]]]]]]:
+        result: List[Tuple[str, List[Tuple[str, List[Tuple[str, str]]]]]] = []
+        if not os.path.isdir(TOURNAMENTS_DIR):
+            return result
+
+        for tournament_entry in sorted(os.listdir(TOURNAMENTS_DIR)):
+            tournament_path = os.path.join(TOURNAMENTS_DIR, tournament_entry)
+            if not os.path.isdir(tournament_path):
+                continue
+            matches_dir = os.path.join(tournament_path, "MATCHES")
+            matches: List[Tuple[str, List[Tuple[str, str]]]] = []
+            if os.path.isdir(matches_dir):
+                for match_entry in sorted(os.listdir(matches_dir)):
+                    match_path = os.path.join(matches_dir, match_entry)
+                    if not os.path.isdir(match_path):
+                        continue
+                    shots: List[Tuple[str, str]] = []
+                    for shot_entry in sorted(os.listdir(match_path)):
+                        if not shot_entry.lower().endswith(".json"):
+                            continue
+                        shot_path = os.path.join(match_path, shot_entry)
+                        if not os.path.isfile(shot_path):
+                            continue
+                        shot_name = os.path.splitext(shot_entry)[0].replace("_", " ")
+                        shots.append((shot_name, shot_path))
+                    match_name = match_entry.replace("_", " ")
+                    matches.append((match_name, shots))
+            tournament_name = tournament_entry.replace("_", " ")
+            result.append((tournament_name, matches))
+
+        return result
+
+    def _on_tree_select(self, _event=None):
+        selection = self.tree.selection()
+        if not selection:
+            return
+        item_id = selection[0]
+        shot_path = self._item_paths.get(item_id)
+        if not shot_path:
+            return
+        self.on_select_shot(shot_path)
+
 # ----------------------------- Main App -----------------------------
 
 class App(tk.Tk):
@@ -1396,6 +1493,9 @@ class App(tk.Tk):
         self.title("Pool Table Board")
         self.geometry("1300x750")
         self.minsize(980, 560)
+
+        self.sidebar_toggle_var = tk.BooleanVar(value=False)
+        self.tournament_toggle_var = tk.BooleanVar(value=True)
 
         menubar = tk.Menu(self)
         file_menu = tk.Menu(menubar, tearoff=0)
@@ -1407,22 +1507,101 @@ class App(tk.Tk):
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.destroy)
         menubar.add_cascade(label="File", menu=file_menu)
+
+        view_menu = tk.Menu(menubar, tearoff=0)
+        view_menu.add_checkbutton(
+            label="Tournament Browser",
+            variable=self.tournament_toggle_var,
+            command=self.toggle_tournament_browser,
+        )
+        view_menu.add_checkbutton(
+            label="Settings Panel",
+            variable=self.sidebar_toggle_var,
+            command=self.toggle_sidebar,
+        )
+        menubar.add_cascade(label="View", menu=view_menu)
+
+        self.tournaments_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Tournaments", menu=self.tournaments_menu)
         self.config(menu=menubar)
 
-        self.columnconfigure(0, weight=1)
+        self.columnconfigure(0, weight=0)
+        self.columnconfigure(1, weight=1)
+        self.columnconfigure(2, weight=0)
         self.rowconfigure(0, weight=1)
 
         self.table_canvas = PoolTableCanvas(self, width=1000, height=600, bd=0)
-        self.table_canvas.grid(row=0, column=0, sticky="nsew")
+        self.table_canvas.grid(row=0, column=1, sticky="nsew")
+
+        self.tournament_browser = TournamentBrowser(
+            self, on_select_shot=self.load_layout_from_path, width=260, bd=1, relief="groove"
+        )
+        self.tournament_browser.grid(row=0, column=0, sticky="ns")
+        self.tournament_browser.grid_propagate(False)
 
         self.sidebar = Sidebar(self, self.table_canvas, width=340, bd=1, relief="groove")
-        self.sidebar.grid(row=0, column=1, sticky="ns")
+        self.sidebar.grid(row=0, column=2, sticky="ns")
         self.sidebar.grid_propagate(False)
+
+        self._sidebar_visible = True
+        self.hide_sidebar(initial=True)
+
+        self._tournament_visible = True
+        if not self.tournament_toggle_var.get():
+            self.hide_tournament_browser(initial=True)
+
+        self.refresh_tournaments()
 
     def destroy(self):
         if hasattr(self, "table_canvas"):
             self.table_canvas.shutdown()
         super().destroy()
+
+    def toggle_tournament_browser(self):
+        if self.tournament_toggle_var.get():
+            self.show_tournament_browser()
+        else:
+            self.hide_tournament_browser()
+
+    def toggle_sidebar(self):
+        if self.sidebar_toggle_var.get():
+            self.show_sidebar()
+        else:
+            self.hide_sidebar()
+
+    def show_tournament_browser(self):
+        if getattr(self, "_tournament_visible", False):
+            return
+        self.tournament_browser.grid()
+        self.tournament_browser.grid_propagate(False)
+        self._tournament_visible = True
+        if not self.tournament_toggle_var.get():
+            self.tournament_toggle_var.set(True)
+
+    def hide_tournament_browser(self, initial: bool = False):
+        if not getattr(self, "_tournament_visible", False) and not initial:
+            return
+        self.tournament_browser.grid_remove()
+        self._tournament_visible = False
+        if self.tournament_toggle_var.get():
+            self.tournament_toggle_var.set(False)
+
+    def show_sidebar(self):
+        if getattr(self, "_sidebar_visible", False):
+            return
+        self.sidebar.grid()
+        self.sidebar.grid_propagate(False)
+        self._sidebar_visible = True
+        if not self.sidebar_toggle_var.get():
+            self.sidebar_toggle_var.set(True)
+
+    def hide_sidebar(self, initial: bool = False):
+        if not getattr(self, "_sidebar_visible", False) and not initial:
+            return
+        self.sidebar.grid_remove()
+        self._sidebar_visible = False
+        if self.sidebar_toggle_var.get():
+            self.sidebar_toggle_var.set(False)
 
     def _proxy_load_table(self):
         self.sidebar.load_table_dialog()
@@ -1435,6 +1614,59 @@ class App(tk.Tk):
 
     def _proxy_load_layout(self):
         self.sidebar.load_layout_dialog()
+
+    def refresh_tournaments(self):
+        if hasattr(self, "tournament_browser"):
+            self.tournament_browser.refresh_tree()
+        self._build_tournaments_menu()
+
+    def _build_tournaments_menu(self):
+        self.tournaments_menu.delete(0, "end")
+        tournaments = []
+        if hasattr(self, "tournament_browser"):
+            tournaments = self.tournament_browser._discover_tournaments()
+
+        if not tournaments:
+            self.tournaments_menu.add_command(label="No tournaments available", state="disabled")
+        else:
+            for tournament_name, matches in tournaments:
+                match_menu = tk.Menu(self.tournaments_menu, tearoff=0)
+                if not matches:
+                    match_menu.add_command(label="No matches", state="disabled")
+                else:
+                    for match_name, shots in matches:
+                        shot_menu = tk.Menu(match_menu, tearoff=0)
+                        if not shots:
+                            shot_menu.add_command(label="No shots", state="disabled")
+                        else:
+                            for shot_name, shot_path in shots:
+                                shot_menu.add_command(
+                                    label=shot_name,
+                                    command=lambda p=shot_path: self.load_layout_from_path(p),
+                                )
+                        match_menu.add_cascade(label=match_name, menu=shot_menu)
+                self.tournaments_menu.add_cascade(label=tournament_name, menu=match_menu)
+
+        if self.tournaments_menu.index("end") is not None:
+            self.tournaments_menu.add_separator()
+        self.tournaments_menu.add_command(label="Refresh", command=self.refresh_tournaments)
+
+    def load_layout_from_path(self, path: str):
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except Exception as exc:
+            messagebox.showerror("Error", f"Failed to load shot:\n{exc}")
+            return
+
+        try:
+            self.table_canvas.restore(data)
+        except Exception as exc:
+            messagebox.showerror("Error", f"Failed to apply layout:\n{exc}")
+            return
+
+        if hasattr(self, "sidebar"):
+            self.sidebar.refresh_ball_list()
 
 def main():
     app = App()
