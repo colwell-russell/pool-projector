@@ -14,12 +14,10 @@ Run
     python pool_table_board.py
 """
 
-import copy
 import json
 import os
-import shutil
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk, colorchooser, simpledialog
+from tkinter import filedialog, messagebox, ttk, colorchooser
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Tuple, Callable
 
@@ -53,131 +51,8 @@ LAYOUTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "layouts"
 os.makedirs(LAYOUTS_DIR, exist_ok=True)
 
 IMAGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
-BALL_IMAGES_DIR = os.path.join(IMAGES_DIR, "balls")
-TABLE_IMAGES_DIR = os.path.join(IMAGES_DIR, "table")
-os.makedirs(BALL_IMAGES_DIR, exist_ok=True)
-os.makedirs(TABLE_IMAGES_DIR, exist_ok=True)
-
-
-def list_ball_assets() -> List[Tuple[str, str]]:
-    assets: List[Tuple[str, str]] = []
-    if os.path.isdir(BALL_IMAGES_DIR):
-        for entry in sorted(os.listdir(BALL_IMAGES_DIR)):
-            if not entry.lower().endswith(".png"):
-                continue
-            name = os.path.splitext(entry)[0]
-            path = os.path.join(BALL_IMAGES_DIR, entry)
-            assets.append((name, path))
-    return assets
 TOURNAMENTS_DIR = os.path.join(LAYOUTS_DIR, "Tournaments")
 os.makedirs(TOURNAMENTS_DIR, exist_ok=True)
-
-
-def convert_legacy_tournaments():
-    """Convert folder-based tournaments into single JSON files per tournament."""
-    try:
-        entries = sorted(os.listdir(TOURNAMENTS_DIR))
-    except FileNotFoundError:
-        return
-
-    for entry in entries:
-        entry_path = os.path.join(TOURNAMENTS_DIR, entry)
-        if entry.lower().endswith(".json"):
-            continue
-        if not os.path.isdir(entry_path):
-            continue
-        if entry.lower().endswith("_legacy") or "_legacy" in entry.lower():
-            continue
-
-        matches_dir = os.path.join(entry_path, "MATCHES")
-        if not os.path.isdir(matches_dir):
-            continue
-
-        target_json = os.path.join(TOURNAMENTS_DIR, f"{entry}.json")
-        if os.path.exists(target_json):
-            # Assume already converted
-            continue
-
-        tournament_name = entry.replace("_", " ")
-        matches_data = []
-
-        for match_entry in sorted(os.listdir(matches_dir)):
-            match_path = os.path.join(matches_dir, match_entry)
-            if not os.path.isdir(match_path):
-                continue
-
-            player_one, player_two = infer_players_from_folder_name(match_entry)
-            match_shots = []
-
-            for shot_entry in sorted(os.listdir(match_path)):
-                if not shot_entry.lower().endswith(".json"):
-                    continue
-                shot_path = os.path.join(match_path, shot_entry)
-                if not os.path.isfile(shot_path):
-                    continue
-                try:
-                    with open(shot_path, "r", encoding="utf-8") as handle:
-                        shot_data = json.load(handle)
-                except Exception:
-                    continue
-
-                shot_name = os.path.splitext(shot_entry)[0].replace("_", " ")
-                match_shots.append(
-                    {
-                        "name": shot_name,
-                        "player": "playerOne",
-                        "data": shot_data,
-                    }
-                )
-
-            matches_data.append(
-                {
-                    "name": match_entry,
-                    "playerOne": player_one,
-                    "playerTwo": player_two,
-                    "shots": match_shots,
-                }
-            )
-
-        document = {"name": tournament_name, "matches": matches_data}
-        try:
-            with open(target_json, "w", encoding="utf-8") as handle:
-                json.dump(document, handle, indent=2)
-        except Exception:
-            continue
-
-        backup_path = entry_path + "_legacy"
-        suffix = 1
-        while os.path.exists(backup_path):
-            suffix += 1
-            backup_path = f"{entry_path}_legacy{suffix}"
-        try:
-            shutil.move(entry_path, backup_path)
-        except Exception:
-            pass
-
-
-def infer_players_from_folder_name(folder_name: str) -> Tuple[str, str]:
-    marker = "_VS_"
-    upper = folder_name.upper()
-    if marker in upper:
-        idx = upper.find(marker)
-        left = folder_name[:idx]
-        right = folder_name[idx + len(marker) :]
-    else:
-        parts = folder_name.split("_")
-        split = len(parts) // 2
-        left = "_".join(parts[:split]) if split else folder_name
-        right = "_".join(parts[split:]) if split else folder_name
-
-    def normalize(segment: str, fallback: str) -> str:
-        cleaned = " ".join(segment.replace("_", " ").split())
-        cleaned = cleaned.strip()
-        return cleaned or fallback
-
-    player_one = normalize(left, "Player 1")
-    player_two = normalize(right, "Player 2")
-    return player_one, player_two
 
 # ----------------------------- Data Models -----------------------------
 
@@ -200,13 +75,6 @@ class DrawingState:
     v1: float
     u2: float
     v2: float
-
-
-@dataclass(frozen=True)
-class ShotReference:
-    tournament_path: str
-    match_index: int
-    shot_index: int
 
 # ----------------------------- Helpers -----------------------------
 
@@ -1104,23 +972,12 @@ class Sidebar(tk.Frame):
 
         # File controls
         self.btn_load_table = tk.Button(body, text="Load Table Image...", command=self.load_table_dialog)
+        self.btn_load_balls = tk.Button(body, text="Load Ball Images...", command=self.load_balls_dialog)
         self.btn_save_layout = tk.Button(body, text="Save Layout...", command=self.save_layout_dialog)
         self.btn_load_layout = tk.Button(body, text="Load Layout...", command=self.load_layout_dialog)
 
         self.btn_load_table.pack(fill="x", pady=(6, 3), padx=6)
-
-        tk.Label(body, text="Add Ball", anchor="w", font=("Segoe UI", 10, "bold")).pack(fill="x", padx=8, pady=(2, 0))
-        self.ball_choice_var = tk.StringVar()
-        self.ball_catalog_combo = ttk.Combobox(
-            body,
-            state="readonly",
-            textvariable=self.ball_choice_var,
-            values=[],
-        )
-        self.ball_catalog_combo.pack(fill="x", padx=10, pady=(0, 4))
-
-        self.btn_add_ball = tk.Button(body, text="Add Selected Ball", command=self.add_selected_ball)
-        self.btn_add_ball.pack(fill="x", padx=10, pady=(0, 6))
+        self.btn_load_balls.pack(fill="x", pady=3, padx=6)
 
         # Table size slider
         self.table_size_label = tk.Label(body, text="Table Size (%)", anchor="w", font=("Segoe UI", 10, "bold"))
@@ -1237,8 +1094,6 @@ class Sidebar(tk.Frame):
         self._scroll_canvas.bind_all("<Button-5>", self._on_mousewheel)
 
         self._update_webcam_controls()
-
-        self._update_ball_catalog()
 
         # Initialize tool bindings
         self.tool_choice.trace_add("write", self.on_tool_change)
@@ -1363,7 +1218,6 @@ class Sidebar(tk.Frame):
         self.table_canvas.set_ball_scale(scale)
 
     def refresh_ball_list(self):
-        self._update_ball_catalog()
         for w in self.ball_frame.winfo_children():
             w.destroy()
         self.ball_vars.clear()
@@ -1394,81 +1248,23 @@ class Sidebar(tk.Frame):
             self.table_canvas.load_table_image(path)
 
     def load_balls_dialog(self):
-        self.prompt_add_ball_from_catalog()
-
-    def _update_ball_catalog(self):
-        catalog = list_ball_assets()
-        self.ball_catalog = catalog
-        names = [name for name, _ in catalog]
-        self.ball_catalog_combo.configure(values=names)
-        if names:
-            if self.ball_choice_var.get() not in names:
-                self.ball_choice_var.set(names[0])
-            self.btn_add_ball.configure(state=tk.NORMAL)
-        else:
-            self.ball_choice_var.set("")
-            self.btn_add_ball.configure(state=tk.DISABLED)
-
-    def add_selected_ball(self):
-        catalog = getattr(self, "ball_catalog", [])
-        if not catalog:
-            messagebox.showerror("Add Ball", "No ball images available in the catalog.")
-            return
-
-        selected = self.ball_choice_var.get() or catalog[0][0]
-        path = None
-        for name, p in catalog:
-            if name == selected:
-                path = p
-                display_name = name
-                break
-        else:
-            path = catalog[0][1]
-            display_name = catalog[0][0]
-
+        paths = filedialog.askopenfilenames(
+            title="Select Ball Images (PNG with transparency recommended)",
+            filetypes=IMAGE_FILETYPES,
+            initialdir=IMAGES_DIR if os.path.isdir(IMAGES_DIR) else None,
+        )
         existing_names = {b.name for b in self.table_canvas.balls}
-        candidate = display_name
-        index = 2
-        while candidate in existing_names:
-            candidate = f"{display_name}_{index}"
-            index += 1
-
-        try:
-            self.table_canvas.add_ball(candidate, path)
-        except Exception as exc:
-            messagebox.showerror("Add Ball", f"Failed to add ball:\n{exc}")
-            return
+        for p in paths:
+            base = os.path.splitext(os.path.basename(p))[0]
+            name = base
+            i = 2
+            while name in existing_names:
+                name = f"{base}_{i}"
+                i += 1
+            self.table_canvas.add_ball(name, p)
+            existing_names.add(name)
 
         self.refresh_ball_list()
-        self.table_canvas._notify()
-
-    def prompt_add_ball_from_catalog(self):
-        self._update_ball_catalog()
-        catalog = getattr(self, "ball_catalog", [])
-        if not catalog:
-            messagebox.showerror("Add Ball", "No ball images available in the catalog.")
-            return
-
-        dialog = tk.Toplevel(self)
-        dialog.title("Add Ball")
-        dialog.transient(self)
-        dialog.grab_set()
-
-        tk.Label(dialog, text="Select ball:").pack(padx=12, pady=(12, 6))
-
-        local_var = tk.StringVar(value=self.ball_choice_var.get() or catalog[0][0])
-        combo = ttk.Combobox(dialog, state="readonly", textvariable=local_var, values=[name for name, _ in catalog], width=18)
-        combo.pack(padx=12, pady=(0, 10))
-        combo.focus_set()
-
-        def confirm():
-            self.ball_choice_var.set(local_var.get())
-            dialog.destroy()
-            self.add_selected_ball()
-
-        tk.Button(dialog, text="Add", command=confirm).pack(padx=12, pady=(0, 10))
-        dialog.bind("<Return>", lambda _e: confirm())
-        dialog.bind("<Escape>", lambda _e: dialog.destroy())
 
     def save_layout_dialog(self):
         data = self.table_canvas.serialize()
@@ -1598,18 +1394,10 @@ class Sidebar(tk.Frame):
 class TournamentBrowser(tk.Frame):
     """Left pane: browse tournaments, matches, and load shots."""
 
-    def __init__(
-        self,
-        master,
-        on_select_shot: Callable[[ShotReference], None],
-        on_request_refresh: Optional[Callable[[], None]] = None,
-        **kwargs,
-    ):
+    def __init__(self, master, on_select_shot: Callable[[str], None], **kwargs):
         super().__init__(master, **kwargs)
         self.on_select_shot = on_select_shot
-        self.on_request_refresh = on_request_refresh
-        self._item_refs: Dict[str, ShotReference] = {}
-        self._current_data: List[Dict] = []
+        self._item_paths: Dict[str, str] = {}
 
         container = tk.Frame(self)
         container.pack(fill="both", expand=True)
@@ -1622,77 +1410,80 @@ class TournamentBrowser(tk.Frame):
         self.scrollbar.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=self.scrollbar.set)
 
-        self.refresh_btn = tk.Button(self, text="Refresh List", command=self._handle_refresh_request)
+        self.refresh_btn = tk.Button(self, text="Refresh List", command=self.refresh_tree)
         self.refresh_btn.pack(fill="x", padx=6, pady=6)
 
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
 
-    def refresh(self, tournaments: List[Dict], selected: Optional[ShotReference] = None):
-        self._current_data = tournaments
-        self.tree.delete(*self.tree.get_children())
-        self._item_refs.clear()
+        self.refresh_tree()
 
+    def refresh_tree(self):
+        self.tree.delete(*self.tree.get_children())
+        self._item_paths.clear()
+
+        tournaments = self._discover_tournaments()
         if not tournaments:
             placeholder = self.tree.insert("", "end", text="No tournaments found", open=False)
             self.tree.item(placeholder, tags=("placeholder",))
             return
 
-        selected_item_id: Optional[str] = None
-
-        for tournament in tournaments:
-            t_name = tournament.get("name", "Tournament")
-            matches = tournament.get("matches", [])
-            tournament_id = self.tree.insert("", "end", text=t_name, open=True)
+        for tournament_name, matches in tournaments:
+            tournament_id = self.tree.insert("", "end", text=tournament_name, open=False)
             if not matches:
                 empty_id = self.tree.insert(tournament_id, "end", text="(No matches)", open=False)
                 self.tree.item(empty_id, tags=("placeholder",))
                 continue
-
-            for match in matches:
-                match_label = match.get("name", "Match")
-                player_one = match.get("player_one", "Player 1")
-                player_two = match.get("player_two", "Player 2")
-                match_id = self.tree.insert(
-                    tournament_id,
-                    "end",
-                    text=f"{match_label} — {player_one} vs {player_two}",
-                    open=True,
-                )
-                shots = match.get("shots", [])
+            for match_name, shots in matches:
+                match_id = self.tree.insert(tournament_id, "end", text=match_name, open=False)
                 if not shots:
                     empty_match = self.tree.insert(match_id, "end", text="(No shots)", open=False)
                     self.tree.item(empty_match, tags=("placeholder",))
                     continue
-                for shot in shots:
-                    label = shot.get("label", "Shot")
-                    shot_id = self.tree.insert(match_id, "end", text=label, open=False)
-                    ref = shot.get("reference")
-                    if isinstance(ref, ShotReference):
-                        self._item_refs[shot_id] = ref
-                        if selected is not None and ref == selected:
-                            selected_item_id = shot_id
+                for shot_name, shot_path in shots:
+                    shot_id = self.tree.insert(match_id, "end", text=shot_name, open=False)
+                    self._item_paths[shot_id] = shot_path
 
-        if selected_item_id is not None:
-            try:
-                self.tree.selection_set(selected_item_id)
-                self.tree.focus(selected_item_id)
-                self.tree.see(selected_item_id)
-            except tk.TclError:
-                pass
+    def _discover_tournaments(self) -> List[Tuple[str, List[Tuple[str, List[Tuple[str, str]]]]]]:
+        result: List[Tuple[str, List[Tuple[str, List[Tuple[str, str]]]]]] = []
+        if not os.path.isdir(TOURNAMENTS_DIR):
+            return result
 
-    def _handle_refresh_request(self):
-        if callable(self.on_request_refresh):
-            self.on_request_refresh()
+        for tournament_entry in sorted(os.listdir(TOURNAMENTS_DIR)):
+            tournament_path = os.path.join(TOURNAMENTS_DIR, tournament_entry)
+            if not os.path.isdir(tournament_path):
+                continue
+            matches_dir = os.path.join(tournament_path, "MATCHES")
+            matches: List[Tuple[str, List[Tuple[str, str]]]] = []
+            if os.path.isdir(matches_dir):
+                for match_entry in sorted(os.listdir(matches_dir)):
+                    match_path = os.path.join(matches_dir, match_entry)
+                    if not os.path.isdir(match_path):
+                        continue
+                    shots: List[Tuple[str, str]] = []
+                    for shot_entry in sorted(os.listdir(match_path)):
+                        if not shot_entry.lower().endswith(".json"):
+                            continue
+                        shot_path = os.path.join(match_path, shot_entry)
+                        if not os.path.isfile(shot_path):
+                            continue
+                        shot_name = os.path.splitext(shot_entry)[0].replace("_", " ")
+                        shots.append((shot_name, shot_path))
+                    match_name = match_entry.replace("_", " ")
+                    matches.append((match_name, shots))
+            tournament_name = tournament_entry.replace("_", " ")
+            result.append((tournament_name, matches))
+
+        return result
 
     def _on_tree_select(self, _event=None):
         selection = self.tree.selection()
         if not selection:
             return
         item_id = selection[0]
-        reference = self._item_refs.get(item_id)
-        if reference is None:
+        shot_path = self._item_paths.get(item_id)
+        if not shot_path:
             return
-        self.on_select_shot(reference)
+        self.on_select_shot(shot_path)
 
 # ----------------------------- Main App -----------------------------
 
@@ -1703,15 +1494,13 @@ class App(tk.Tk):
         self.geometry("1300x750")
         self.minsize(980, 560)
 
-        convert_legacy_tournaments()
-
         self.sidebar_toggle_var = tk.BooleanVar(value=False)
         self.tournament_toggle_var = tk.BooleanVar(value=True)
 
         menubar = tk.Menu(self)
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Load Table Image...", command=self._proxy_load_table)
-        file_menu.add_command(label="Add Ball From Library...", command=self._proxy_load_balls)
+        file_menu.add_command(label="Load Ball Images...", command=self._proxy_load_balls)
         file_menu.add_separator()
         file_menu.add_command(label="Save Layout...", command=self._proxy_save_layout)
         file_menu.add_command(label="Load Layout...", command=self._proxy_load_layout)
@@ -1736,26 +1525,6 @@ class App(tk.Tk):
         menubar.add_cascade(label="Tournaments", menu=self.tournaments_menu)
         self.config(menu=menubar)
 
-        self._tournament_editor_window: Optional[tk.Toplevel] = None
-        self._tournament_editor_tree: Optional[ttk.Treeview] = None
-        self._tournament_editor_tree_meta: Dict[str, Dict[str, object]] = {}
-        self._tournament_editor_message: Optional[tk.StringVar] = None
-        self._tournament_editor_default_message: str = "Select a tournament or match, or create a new tournament."
-        self._tournament_editor_canvas: Optional[PoolTableCanvas] = None
-        self._tournament_editor_player_frame: Optional[tk.Widget] = None
-        self._tournament_editor_player_vars: Optional[Tuple[tk.StringVar, tk.StringVar]] = None
-        self._tournament_editor_shot_frame: Optional[tk.Widget] = None
-        self._tournament_editor_shot_listbox: Optional[tk.Listbox] = None
-        self._tournament_editor_shot_items: List[Tuple[str, ShotReference]] = []
-        self._tournament_editor_active_match: Optional[Tuple[str, int]] = None
-        self._match_player_names: Dict[Tuple[str, int], Tuple[str, str]] = {}
-        self._tournament_editor_save_btn: Optional[tk.Button] = None
-        self._tournament_editor_current_ref: Optional[ShotReference] = None
-
-        self._tournament_documents: Dict[str, Dict] = {}
-        self._tournaments_summary: List[Dict] = []
-        self._current_shot_reference: Optional[ShotReference] = None
-
         self.columnconfigure(0, weight=0)
         self.columnconfigure(1, weight=1)
         self.columnconfigure(2, weight=0)
@@ -1765,12 +1534,7 @@ class App(tk.Tk):
         self.table_canvas.grid(row=0, column=1, sticky="nsew")
 
         self.tournament_browser = TournamentBrowser(
-            self,
-            on_select_shot=self.load_layout_from_path,
-            on_request_refresh=self.refresh_tournaments,
-            width=260,
-            bd=1,
-            relief="groove",
+            self, on_select_shot=self.load_layout_from_path, width=260, bd=1, relief="groove"
         )
         self.tournament_browser.grid(row=0, column=0, sticky="ns")
         self.tournament_browser.grid_propagate(False)
@@ -1791,8 +1555,6 @@ class App(tk.Tk):
     def destroy(self):
         if hasattr(self, "table_canvas"):
             self.table_canvas.shutdown()
-        if self._tournament_editor_canvas is not None:
-            self._tournament_editor_canvas.shutdown()
         super().destroy()
 
     def toggle_tournament_browser(self):
@@ -1845,7 +1607,7 @@ class App(tk.Tk):
         self.sidebar.load_table_dialog()
 
     def _proxy_load_balls(self):
-        self.sidebar.prompt_add_ball_from_catalog()
+        self.sidebar.load_balls_dialog()
 
     def _proxy_save_layout(self):
         self.sidebar.save_layout_dialog()
@@ -1853,1102 +1615,58 @@ class App(tk.Tk):
     def _proxy_load_layout(self):
         self.sidebar.load_layout_dialog()
 
-    def _prompt_add_ball_to_shot(self):
-        if self._tournament_editor_canvas is None:
-            messagebox.showinfo("Add Ball", "Open or create a shot before adding balls.")
-            return
-
-        catalog = self._ball_catalog()
-        if not catalog:
-            messagebox.showerror("Add Ball", "No ball images available in the catalog.")
-            return
-
-        selected_name = None
-        if isinstance(getattr(self, "_tournament_editor_ball_var", None), tk.StringVar):
-            selected_name = self._tournament_editor_ball_var.get()
-        if not selected_name or selected_name not in [name for name, _ in catalog]:
-            selected_name = catalog[0][0]
-
-        path = None
-        for name, asset_path in catalog:
-            if name == selected_name:
-                path = asset_path
-                break
-        if path is None:
-            messagebox.showerror("Add Ball", "Selected ball is unavailable.")
-            return
-
-        existing_names = {ball.name for ball in self._tournament_editor_canvas.balls}
-        candidate = selected_name
-        index = 2
-        while candidate in existing_names:
-            candidate = f"{selected_name}_{index}"
-            index += 1
-
-        try:
-            self._tournament_editor_canvas.add_ball(candidate, path)
-        except Exception as exc:
-            messagebox.showerror("Add Ball", f"Failed to add ball:\n{exc}")
-            return
-
-        self._tournament_editor_canvas.draw_layer.rerender_all()
-
-    def _prompt_add_drawing_to_shot(self):
-        if self._tournament_editor_canvas is None:
-            messagebox.showinfo("Add Drawing", "Open or create a shot before adding drawings.")
-            return
-
-        self._tournament_editor_canvas.tool_mode = "line"
-        if hasattr(self, "sidebar"):
-            self.sidebar.tool_choice.set("line")
-            self.sidebar.on_tool_change()
-        messagebox.showinfo(
-            "Add Drawing",
-            "Drawing tool switched to Line. Click and drag on the editor canvas to sketch.",
-        )
-
     def refresh_tournaments(self):
-        self._tournament_documents.clear()
-        self._tournaments_summary = self._load_tournaments_from_disk()
-        self._match_player_names.clear()
-
         if hasattr(self, "tournament_browser"):
-            self.tournament_browser.refresh(self._tournaments_summary, selected=self._current_shot_reference)
-
+            self.tournament_browser.refresh_tree()
         self._build_tournaments_menu()
-        self._refresh_tournament_editor()
-        self._update_tournament_ball_catalog()
-
-    def _ball_catalog(self) -> List[Tuple[str, str]]:
-        return list_ball_assets()
-
-    def _update_tournament_ball_catalog(self):
-        combo = getattr(self, "_tournament_editor_ball_combo", None)
-        if combo is None:
-            return
-        try:
-            combo.winfo_exists()
-        except tk.TclError:
-            self._tournament_editor_ball_combo = None
-            return
-
-        catalog = self._ball_catalog()
-        names = [name for name, _ in catalog]
-        combo.configure(values=names)
-        self._tournament_editor_ball_catalog = catalog
-
-        if not catalog:
-            if hasattr(self, "_tournament_editor_ball_var") and isinstance(self._tournament_editor_ball_var, tk.StringVar):
-                self._tournament_editor_ball_var.set("")
-            combo.configure(state="disabled")
-        else:
-            combo.configure(state="readonly")
-            if hasattr(self, "_tournament_editor_ball_var") and isinstance(self._tournament_editor_ball_var, tk.StringVar):
-                current = self._tournament_editor_ball_var.get()
-                if current not in names:
-                    self._tournament_editor_ball_var.set(names[0])
-
-    def _load_tournaments_from_disk(self) -> List[Dict]:
-        tournaments: List[Dict] = []
-        if not os.path.isdir(TOURNAMENTS_DIR):
-            return tournaments
-
-        for entry in sorted(os.listdir(TOURNAMENTS_DIR)):
-            if not entry.lower().endswith(".json"):
-                continue
-            tournament_path = os.path.join(TOURNAMENTS_DIR, entry)
-            if not os.path.isfile(tournament_path):
-                continue
-
-            try:
-                with open(tournament_path, "r", encoding="utf-8") as handle:
-                    document = json.load(handle)
-            except Exception:
-                continue
-
-            if not isinstance(document, dict):
-                continue
-
-            matches_raw = document.get("matches", [])
-            if not isinstance(matches_raw, list):
-                matches_raw = []
-
-            summary_matches: List[Dict] = []
-            for match_index, match_raw in enumerate(matches_raw):
-                if not isinstance(match_raw, dict):
-                    continue
-
-                match_name = match_raw.get("name") or f"Match {match_index + 1}"
-                player_one = match_raw.get("playerOne") or "Player 1"
-                player_two = match_raw.get("playerTwo") or "Player 2"
-
-                shots_raw = match_raw.get("shots", [])
-                if not isinstance(shots_raw, list):
-                    shots_raw = []
-
-                summary_shots: List[Dict] = []
-                for shot_index, shot_raw in enumerate(shots_raw):
-                    if not isinstance(shot_raw, dict):
-                        continue
-                    data = shot_raw.get("data")
-                    if not isinstance(data, dict):
-                        continue
-
-                    player_key = shot_raw.get("player")
-                    if player_key not in ("playerOne", "playerTwo"):
-                        player_key = "playerOne"
-
-                    label = shot_raw.get("name") or f"Shot {shot_index + 1}"
-                    reference = ShotReference(tournament_path, match_index, shot_index)
-
-                    summary_shots.append(
-                        {
-                            "label": label,
-                            "player": player_key,
-                            "reference": reference,
-                        }
-                    )
-
-                summary_matches.append(
-                    {
-                        "name": match_name.replace("_", " "),
-                        "player_one": player_one,
-                        "player_two": player_two,
-                        "shots": summary_shots,
-                    }
-                )
-
-            display_name = document.get("name")
-            if not display_name:
-                display_name = os.path.splitext(entry)[0].replace("_", " ")
-
-            tournaments.append(
-                {
-                    "name": display_name,
-                    "path": tournament_path,
-                    "matches": summary_matches,
-                }
-            )
-
-            self._tournament_documents[tournament_path] = document
-
-        return tournaments
-
-    def _get_tournament_document(self, path: str) -> Optional[Dict]:
-        document = self._tournament_documents.get(path)
-        if document is not None:
-            return document
-
-        if not os.path.isfile(path):
-            return None
-
-        try:
-            with open(path, "r", encoding="utf-8") as handle:
-                document = json.load(handle)
-        except Exception:
-            return None
-
-        if not isinstance(document, dict):
-            return None
-
-        self._tournament_documents[path] = document
-        return document
-
-    def _get_shot_data(self, reference: ShotReference) -> Optional[Dict]:
-        document = self._get_tournament_document(reference.tournament_path)
-        if document is None:
-            messagebox.showerror("Error", "Unable to load tournament data for the selected shot.")
-            return None
-
-        matches = document.get("matches", [])
-        if not isinstance(matches, list):
-            messagebox.showerror("Error", "Tournament data is malformed.")
-            return None
-
-        try:
-            match = matches[reference.match_index]
-            shots = match.get("shots", [])
-            shot = shots[reference.shot_index]
-        except (IndexError, AttributeError, TypeError):
-            messagebox.showerror("Error", "Shot reference is out of date.")
-            return None
-
-        if not isinstance(shot, dict):
-            messagebox.showerror("Error", "Shot data is malformed.")
-            return None
-
-        data = shot.get("data")
-        if not isinstance(data, dict):
-            messagebox.showerror("Error", "Shot layout data is missing or invalid.")
-            return None
-
-        return copy.deepcopy(data)
-
-    def _update_shot_data(
-        self,
-        reference: ShotReference,
-        data: Dict,
-        player_names: Optional[Tuple[str, str]] = None,
-    ) -> bool:
-        document = self._get_tournament_document(reference.tournament_path)
-        if document is None:
-            messagebox.showerror("Save Shot", "Unable to locate tournament data for saving.")
-            return False
-
-        matches = document.get("matches", [])
-        if not isinstance(matches, list):
-            messagebox.showerror("Save Shot", "Tournament data is malformed.")
-            return False
-
-        try:
-            match = matches[reference.match_index]
-            shots = match.get("shots", [])
-            shot = shots[reference.shot_index]
-        except (IndexError, AttributeError, TypeError):
-            messagebox.showerror("Save Shot", "Shot reference is out of date.")
-            return False
-
-        if not isinstance(shot, dict):
-            messagebox.showerror("Save Shot", "Shot data is malformed.")
-            return False
-
-        shot["data"] = data
-
-        if player_names is not None:
-            player_one, player_two = player_names
-            match["playerOne"] = player_one
-            match["playerTwo"] = player_two
-
-        try:
-            with open(reference.tournament_path, "w", encoding="utf-8") as handle:
-                json.dump(document, handle, indent=2)
-        except Exception as exc:
-            messagebox.showerror("Save Shot", f"Failed to save tournament file:\n{exc}")
-            return False
-
-        self._tournament_documents[reference.tournament_path] = document
-        matches_summary: List[Dict] = []
-        for tournament in self._tournaments_summary:
-            if tournament.get("path") != reference.tournament_path:
-                continue
-            matches_summary = tournament.get("matches", [])
-            if 0 <= reference.match_index < len(matches_summary):
-                match_summary = matches_summary[reference.match_index]
-                if player_names is not None:
-                    match_summary["player_one"], match_summary["player_two"] = player_names
-                match_summary["shots"] = match_summary.get("shots", [])
-            break
-
-        if player_names is not None and self._tournament_editor_tree is not None:
-            for item_id, meta in self._tournament_editor_tree_meta.items():
-                if meta.get("type") != "match":
-                    continue
-                if (
-                    meta.get("tournament_path") == reference.tournament_path
-                    and int(meta.get("match_index", -1)) == reference.match_index
-                ):
-                    meta["player_one"], meta["player_two"] = player_names
-                    if 0 <= reference.match_index < len(matches_summary):
-                        meta["shots"] = matches_summary[reference.match_index].get("shots", [])
-                    try:
-                        new_text = f"{meta.get('match_name', 'Match')} — {player_names[0]} vs {player_names[1]}"
-                        self._tournament_editor_tree.item(item_id, text=new_text)
-                    except tk.TclError:
-                        pass
-                    break
-        return True
 
     def _build_tournaments_menu(self):
         self.tournaments_menu.delete(0, "end")
-        tournaments = self._tournaments_summary
+        tournaments = []
+        if hasattr(self, "tournament_browser"):
+            tournaments = self.tournament_browser._discover_tournaments()
 
         if not tournaments:
             self.tournaments_menu.add_command(label="No tournaments available", state="disabled")
         else:
-            for tournament in tournaments:
-                tournament_name = tournament.get("name", "Tournament")
-                matches = tournament.get("matches", [])
+            for tournament_name, matches in tournaments:
                 match_menu = tk.Menu(self.tournaments_menu, tearoff=0)
                 if not matches:
                     match_menu.add_command(label="No matches", state="disabled")
                 else:
-                    for match_index, match in enumerate(matches):
-                        match_name = match.get("name", f"Match {match_index + 1}")
-                        shots = match.get("shots", [])
+                    for match_name, shots in matches:
                         shot_menu = tk.Menu(match_menu, tearoff=0)
                         if not shots:
                             shot_menu.add_command(label="No shots", state="disabled")
                         else:
-                            for shot in shots:
-                                reference = shot.get("reference")
-                                if not isinstance(reference, ShotReference):
-                                    continue
-                                shot_label = shot.get("label", "Shot")
+                            for shot_name, shot_path in shots:
                                 shot_menu.add_command(
-                                    label=shot_label,
-                                    command=lambda r=reference: self.load_layout_from_path(r),
+                                    label=shot_name,
+                                    command=lambda p=shot_path: self.load_layout_from_path(p),
                                 )
                         match_menu.add_cascade(label=match_name, menu=shot_menu)
                 self.tournaments_menu.add_cascade(label=tournament_name, menu=match_menu)
 
         if self.tournaments_menu.index("end") is not None:
             self.tournaments_menu.add_separator()
-        self.tournaments_menu.add_command(
-            label="Edit Tournament",
-            command=self.open_tournament_editor,
-        )
         self.tournaments_menu.add_command(label="Refresh", command=self.refresh_tournaments)
 
-    def open_tournament_editor(self):
-        if self._tournament_editor_window is not None:
-            if self._tournament_editor_window.winfo_exists():
-                self._tournament_editor_window.deiconify()
-                self._tournament_editor_window.lift()
-                self._tournament_editor_window.focus_force()
-                return
-            self._tournament_editor_window = None
-
-        window = tk.Toplevel(self)
-        window.title("Edit Tournament")
-        window.geometry("1024x700")
-        window.minsize(900, 600)
-
-        main_frame = tk.Frame(window)
-        main_frame.pack(fill="both", expand=True)
-
-        list_frame = tk.Frame(main_frame, bd=1, relief="sunken")
-        list_frame.pack(side="left", fill="y", padx=(12, 8), pady=12)
-
-        tk.Label(list_frame, text="Tournaments & Matches").pack(anchor="w", padx=8, pady=(8, 4))
-
-        tree = ttk.Treeview(list_frame, show="tree", selectmode="browse", height=12)
-        tree.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-
-        new_tournament_btn = tk.Button(
-            list_frame,
-            text="New Tournament",
-            command=self._prompt_new_tournament,
-        )
-        new_tournament_btn.pack(fill="x", padx=8, pady=(0, 4))
-
-        new_match_btn = tk.Button(
-            list_frame,
-            text="New Match",
-            command=self._prompt_new_match,
-        )
-        new_match_btn.pack(fill="x", padx=8, pady=(0, 8))
-
-        canvas_frame = tk.Frame(main_frame, bd=1, relief="sunken")
-        canvas_frame.pack(side="left", fill="both", expand=True, padx=(0, 0), pady=12)
-
-        editor_canvas = PoolTableCanvas(canvas_frame, width=720, height=520, bd=0)
-        editor_canvas.pack(fill="both", expand=True, padx=8, pady=8)
-
-        detail_frame = tk.Frame(main_frame, bd=1, relief="sunken")
-        detail_frame.pack(side="right", fill="y", padx=(8, 12), pady=12)
-
-        default_message = self._tournament_editor_default_message
-        message_var = tk.StringVar(value=default_message)
-        message_label = tk.Label(
-            detail_frame,
-            textvariable=message_var,
-            wraplength=260,
-            justify="left",
-            anchor="nw",
-        )
-        message_label.pack(fill="x", expand=False, padx=12, pady=(12, 0))
-
-        players_frame = tk.LabelFrame(detail_frame, text="Players")
-        player1_var = tk.StringVar()
-        player2_var = tk.StringVar()
-
-        tk.Label(players_frame, text="Player 1").grid(row=0, column=0, sticky="w", padx=8, pady=(8, 4))
-        player1_entry = tk.Entry(players_frame, textvariable=player1_var)
-        player1_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8), pady=(8, 4))
-
-        tk.Label(players_frame, text="Player 2").grid(row=1, column=0, sticky="w", padx=8, pady=(0, 8))
-        player2_entry = tk.Entry(players_frame, textvariable=player2_var)
-        player2_entry.grid(row=1, column=1, sticky="ew", padx=(0, 8), pady=(0, 8))
-
-        players_frame.columnconfigure(1, weight=1)
-        players_frame.pack(fill="x", expand=False, padx=12, pady=(12, 6))
-        players_frame.pack_forget()
-
-        save_btn = tk.Button(
-            detail_frame,
-            text="Save Shot",
-            command=self._save_current_match_shot,
-            state=tk.DISABLED,
-        )
-        save_btn.pack(fill="x", expand=False, padx=12, pady=(0, 6))
-        save_btn.pack_forget()
-
-        shots_frame = tk.LabelFrame(detail_frame, text="Shots")
-        shots_inner = tk.Frame(shots_frame)
-        shots_inner.pack(fill="both", expand=True, padx=8, pady=(4, 8))
-
-        shot_listbox = tk.Listbox(shots_inner, exportselection=False, height=8)
-        shot_listbox.pack(side="left", fill="both", expand=True)
-
-        shot_scroll = ttk.Scrollbar(shots_inner, orient="vertical", command=shot_listbox.yview)
-        shot_scroll.pack(side="right", fill="y")
-        shot_listbox.configure(yscrollcommand=shot_scroll.set)
-
-        shot_btn_frame = tk.Frame(shots_frame)
-        shot_btn_frame.pack(fill="x", padx=8, pady=(0, 8))
-
-        add_assets_frame = tk.Frame(shot_btn_frame)
-        add_assets_frame.pack(side="left")
-
-        self._tournament_editor_ball_var = tk.StringVar()
-        self._tournament_editor_ball_combo = ttk.Combobox(
-            add_assets_frame,
-            state="readonly",
-            textvariable=self._tournament_editor_ball_var,
-            values=[],
-            width=16,
-        )
-        self._tournament_editor_ball_combo.pack(side="left", padx=(0, 4))
-        self._tournament_editor_ball_catalog: List[Tuple[str, str]] = []
-
-        add_ball_btn = tk.Button(
-            add_assets_frame,
-            text="Add Ball",
-            command=self._prompt_add_ball_to_shot,
-        )
-        add_ball_btn.pack(side="left", padx=(0, 4))
-
-        add_drawing_btn = tk.Button(
-            add_assets_frame,
-            text="Add Drawing",
-            command=self._prompt_add_drawing_to_shot,
-        )
-        add_drawing_btn.pack(side="left")
-
-        new_shot_btn = tk.Button(
-            shot_btn_frame,
-            text="Add Shot",
-            command=self._prompt_new_shot,
-        )
-        new_shot_btn.pack(side="left")
-
-        open_shot_btn = tk.Button(
-            shot_btn_frame,
-            text="Open Selected Shot",
-            command=self._open_selected_match_shot,
-        )
-        open_shot_btn.pack(side="right")
-
-        shots_frame.pack(fill="both", expand=True, padx=12, pady=(6, 12))
-        shots_frame.pack_forget()
-
-        def on_players_changed(*_args):
-            if self._tournament_editor_active_match is None:
-                return
-            self._match_player_names[self._tournament_editor_active_match] = (
-                player1_var.get(),
-                player2_var.get(),
-            )
-
-        player1_var.trace_add("write", on_players_changed)
-        player2_var.trace_add("write", on_players_changed)
-
-        def on_shot_activate(_event=None):
-            self._open_selected_match_shot()
-
-        def on_shot_select(_event=None):
-            self._open_selected_match_shot()
-
-        shot_listbox.bind("<Double-Button-1>", on_shot_activate)
-        shot_listbox.bind("<<ListboxSelect>>", on_shot_select)
-
-        def on_select(_event=None):
-            selection = tree.selection()
-            if not selection:
-                message_var.set(default_message)
-                self._hide_match_detail()
-                return
-            item_id = selection[0]
-            meta = self._tournament_editor_tree_meta.get(item_id)
-            if not meta:
-                message_var.set(default_message)
-                self._hide_match_detail()
-                return
-            if meta.get("type") == "match":
-                self._show_match_detail(meta)
-                shots = meta.get("shots") or []
-                tournament_name = meta.get("tournament_name", "")
-                match_name = meta.get("match_name", "")
-                shot_count = len(shots)
-                message_var.set(
-                    f"Selected match: {match_name} (Tournament: {tournament_name}) — {shot_count} shot(s)."
-                )
-            else:
-                tournament_name = meta.get("tournament_name", "")
-                message_var.set(f"Selected tournament: {tournament_name}")
-                self._hide_match_detail()
-
-        tree.bind("<<TreeviewSelect>>", on_select)
-
-        def on_close():
-            self._tournament_editor_window = None
-            self._tournament_editor_tree = None
-            self._tournament_editor_tree_meta = {}
-            self._tournament_editor_message = None
-            if self._tournament_editor_canvas is not None:
-                self._tournament_editor_canvas.shutdown()
-            self._tournament_editor_canvas = None
-            self._tournament_editor_player_frame = None
-            self._tournament_editor_player_vars = None
-            self._tournament_editor_shot_frame = None
-            self._tournament_editor_shot_listbox = None
-            self._tournament_editor_shot_items = []
-            self._tournament_editor_active_match = None
-            self._tournament_editor_save_btn = None
-            self._tournament_editor_current_ref = None
-            self._tournament_editor_ball_combo = None
-            self._tournament_editor_ball_var = None
-            self._tournament_editor_ball_catalog = []
-            window.destroy()
-
-        window.protocol("WM_DELETE_WINDOW", on_close)
-        self._tournament_editor_window = window
-        self._tournament_editor_tree = tree
-        self._tournament_editor_message = message_var
-        self._tournament_editor_canvas = editor_canvas
-        self._tournament_editor_player_frame = players_frame
-        self._tournament_editor_player_vars = (player1_var, player2_var)
-        self._tournament_editor_shot_frame = shots_frame
-        self._tournament_editor_shot_listbox = shot_listbox
-        self._tournament_editor_save_btn = save_btn
-
-        self._hide_match_detail()
-        self._refresh_tournament_editor()
-        self._update_tournament_ball_catalog()
-
-    def _refresh_tournament_editor(self, select_name: Optional[str] = None):
-        if (
-            self._tournament_editor_window is None
-            or not self._tournament_editor_window.winfo_exists()
-            or self._tournament_editor_tree is None
-        ):
-            return
-
-        tree = self._tournament_editor_tree
-        tree.delete(*tree.get_children())
-        self._tournament_editor_tree_meta.clear()
-
-        tournament_items: Dict[str, str] = {}
-        for tournament in self._tournaments_summary:
-            tournament_name = tournament.get("name", "Tournament")
-            tournament_path = tournament.get("path", "")
-            matches = tournament.get("matches", [])
-            tournament_id = tree.insert("", "end", text=tournament_name, open=True)
-            tournament_items[tournament_name] = tournament_id
-            self._tournament_editor_tree_meta[tournament_id] = {
-                "type": "tournament",
-                "tournament_name": tournament_name,
-                "tournament_path": tournament_path,
-            }
-            for match_index, match in enumerate(matches):
-                match_label = match.get("name", f"Match {match_index + 1}")
-                player_one = match.get("player_one", "Player 1")
-                player_two = match.get("player_two", "Player 2")
-                match_text = f"{match_label} — {player_one} vs {player_two}"
-                match_id = tree.insert(tournament_id, "end", text=match_text)
-                self._tournament_editor_tree_meta[match_id] = {
-                    "type": "match",
-                    "tournament_name": tournament_name,
-                    "tournament_path": tournament_path,
-                    "match_index": match_index,
-                    "match_name": match_label,
-                    "player_one": player_one,
-                    "player_two": player_two,
-                    "shots": match.get("shots", []),
-                }
-
-        if not tournament_items:
-            if self._tournament_editor_message is not None:
-                self._tournament_editor_message.set("No tournaments found. Create a new one to get started.")
-            return
-
-        target_name = select_name if select_name in tournament_items else next(iter(tournament_items))
-        target_id = tournament_items.get(target_name)
-        if target_id is None:
-            return
-        tree.selection_set(target_id)
-        tree.focus(target_id)
-        tree.see(target_id)
-        tree.event_generate("<<TreeviewSelect>>")
-
-    def _show_match_detail(self, meta: Dict):
-        tournament_path = meta.get("tournament_path", "")
-        tournament_name = meta.get("tournament_name", "")
-        match_index = int(meta.get("match_index", 0))
-        match_name = meta.get("match_name", f"Match {match_index + 1}")
-        player_one = meta.get("player_one", "Player 1")
-        player_two = meta.get("player_two", "Player 2")
-        shots = meta.get("shots") or []
-
-        match_key = (tournament_path, match_index)
-        self._tournament_editor_active_match = match_key
-        self._tournament_editor_current_ref = None
-
-        if self._tournament_editor_player_frame is not None:
-            if not self._tournament_editor_player_frame.winfo_manager():
-                self._tournament_editor_player_frame.pack(fill="x", expand=False, padx=12, pady=(12, 6))
-
-        if self._tournament_editor_save_btn is not None:
-            if not self._tournament_editor_save_btn.winfo_manager():
-                self._tournament_editor_save_btn.pack(fill="x", expand=False, padx=12, pady=(0, 6))
-            self._update_save_button_state(False)
-
-        if self._tournament_editor_shot_frame is not None:
-            if not self._tournament_editor_shot_frame.winfo_manager():
-                self._tournament_editor_shot_frame.pack(fill="both", expand=True, padx=12, pady=(6, 12))
-
-        if self._tournament_editor_player_vars is not None:
-            player1_var, player2_var = self._tournament_editor_player_vars
-            stored = self._match_player_names.get(match_key)
-            if stored is None:
-                inferred = self._infer_players_from_match_folder(match_name)
-                primary = player_one or inferred[0]
-                secondary = player_two or inferred[1]
-                stored = (primary, secondary)
-                self._match_player_names[match_key] = stored
-            # Avoid unnecessary updates if values already match
-            if player1_var.get() != stored[0]:
-                player1_var.set(stored[0])
-            if player2_var.get() != stored[1]:
-                player2_var.set(stored[1])
-
-        self._populate_match_shots(shots)
-
-    def _hide_match_detail(self):
-        self._tournament_editor_active_match = None
-        self._tournament_editor_current_ref = None
-        if self._tournament_editor_player_frame is not None and self._tournament_editor_player_frame.winfo_manager():
-            self._tournament_editor_player_frame.pack_forget()
-        if self._tournament_editor_shot_frame is not None and self._tournament_editor_shot_frame.winfo_manager():
-            self._tournament_editor_shot_frame.pack_forget()
-        if self._tournament_editor_shot_listbox is not None:
-            self._tournament_editor_shot_listbox.delete(0, "end")
-        self._tournament_editor_shot_items = []
-        self._update_save_button_state(False)
-        if self._tournament_editor_save_btn is not None and self._tournament_editor_save_btn.winfo_manager():
-            self._tournament_editor_save_btn.pack_forget()
-
-    def _populate_match_shots(self, shots: List[Dict]):
-        self._tournament_editor_shot_items = []
-        if self._tournament_editor_shot_listbox is None:
-            return
-        listbox = self._tournament_editor_shot_listbox
-        listbox.delete(0, "end")
-        if not shots:
-            listbox.insert("end", "(No shots in this match)")
-            index = listbox.size() - 1
-            if index >= 0:
-                listbox.itemconfig(index, foreground="#666666")
-            return
-        self._update_save_button_state(False)
-        for shot in shots:
-            label = shot.get("label", "Shot")
-            reference = shot.get("reference")
-            if not isinstance(reference, ShotReference):
-                continue
-            self._tournament_editor_shot_items.append((label, reference))
-            listbox.insert("end", label)
-
-    def _update_save_button_state(self, enabled: bool):
-        if self._tournament_editor_save_btn is None:
-            return
-        new_state = tk.NORMAL if enabled else tk.DISABLED
-        if str(self._tournament_editor_save_btn["state"]) != str(new_state):
-            self._tournament_editor_save_btn.configure(state=new_state)
-
-    def _infer_players_from_match_folder(self, folder: Optional[str]) -> Tuple[str, str]:
-        default_names = ("Player 1", "Player 2")
-        if not folder:
-            return default_names
-
-        normalized = folder.replace(" ", "_")
-        return infer_players_from_folder_name(normalized)
-
-    def _open_selected_match_shot(self):
-        if self._tournament_editor_shot_listbox is None:
-            return
-        selection = self._tournament_editor_shot_listbox.curselection()
-        if not selection:
-            return
-        index = selection[0]
-        if index >= len(self._tournament_editor_shot_items):
-            return
-        label, reference = self._tournament_editor_shot_items[index]
-        if not isinstance(reference, ShotReference):
-            return
-        data = self._get_shot_data(reference)
-        if data is None:
-            return
-        if not self._apply_layout_to_table_canvas(data):
-            return
-        self._apply_layout_to_editor_canvas(data)
-        self._tournament_editor_current_ref = reference
-        self._current_shot_reference = reference
-        self._update_save_button_state(True)
-
-    def _save_current_match_shot(self):
-        if self._tournament_editor_current_ref is None:
-            messagebox.showinfo("Save Shot", "Select a match shot before saving.")
-            return
-        if self._tournament_editor_canvas is None:
-            messagebox.showerror("Save Shot", "Editor canvas is not available.")
-            return
-
-        reference = self._tournament_editor_current_ref
-        data = self._tournament_editor_canvas.serialize()
-
-        player_names: Optional[Tuple[str, str]] = None
-        if self._tournament_editor_player_vars is not None:
-            player1_var, player2_var = self._tournament_editor_player_vars
-            player_one = player1_var.get().strip() or "Player 1"
-            player_two = player2_var.get().strip() or "Player 2"
-            player_names = (player_one, player_two)
-
-        if not self._update_shot_data(reference, data, player_names):
-            return
-
-        if not self._apply_layout_to_table_canvas(data):
-            return
-
-        if player_names is not None and self._tournament_editor_active_match is not None:
-            self._match_player_names[self._tournament_editor_active_match] = player_names
-
-        messagebox.showinfo("Save Shot", "Shot saved successfully.")
-
-        if hasattr(self, "tournament_browser"):
-            self.tournament_browser.refresh(self._tournaments_summary, selected=self._current_shot_reference)
-
-    def _read_layout_data(self, path: str) -> Optional[Dict]:
+    def load_layout_from_path(self, path: str):
         try:
             with open(path, "r", encoding="utf-8") as handle:
-                return json.load(handle)
+                data = json.load(handle)
         except Exception as exc:
             messagebox.showerror("Error", f"Failed to load shot:\n{exc}")
-            return None
+            return
 
-    def _apply_layout_to_table_canvas(self, data: Dict) -> bool:
         try:
             self.table_canvas.restore(data)
         except Exception as exc:
             messagebox.showerror("Error", f"Failed to apply layout:\n{exc}")
-            return False
+            return
+
         if hasattr(self, "sidebar"):
             self.sidebar.refresh_ball_list()
-        return True
-
-    def _apply_layout_to_editor_canvas(self, data: Dict):
-        if self._tournament_editor_canvas is None:
-            return
-        try:
-            self._tournament_editor_canvas.restore(data)
-        except Exception as exc:
-            messagebox.showerror("Error", f"Failed to display shot in editor:\n{exc}")
-
-    def _prompt_new_tournament(self):
-        if self._tournament_editor_window is None:
-            return
-
-        name = simpledialog.askstring("New Tournament", "Enter tournament name:", parent=self._tournament_editor_window)
-        if name is None:
-            return
-
-        cleaned = " ".join(name.strip().split())
-        if not cleaned:
-            messagebox.showinfo("New Tournament", "Please enter a valid tournament name.")
-            return
-
-        file_stem = cleaned.replace(" ", "_")
-        tournament_path = os.path.join(TOURNAMENTS_DIR, f"{file_stem}.json")
-
-        if os.path.exists(tournament_path):
-            messagebox.showerror(
-                "New Tournament",
-                f"A tournament named '{cleaned}' already exists.",
-            )
-            return
-
-        document = {"name": cleaned, "matches": []}
-
-        try:
-            with open(tournament_path, "w", encoding="utf-8") as handle:
-                json.dump(document, handle, indent=2)
-        except OSError as exc:
-            messagebox.showerror("New Tournament", f"Failed to create tournament:\n{exc}")
-            return
-
-        self.refresh_tournaments()
-        self._refresh_tournament_editor(select_name=cleaned)
-
-    def _get_selected_editor_meta(self) -> Optional[Dict]:
-        if self._tournament_editor_tree is None:
-            return None
-        selection = self._tournament_editor_tree.selection()
-        if not selection:
-            return None
-        return self._tournament_editor_tree_meta.get(selection[0])
-
-    def _focus_editor_match(self, tournament_path: str, match_index: int):
-        if self._tournament_editor_tree is None:
-            return
-        target_id: Optional[str] = None
-        for item_id, meta in self._tournament_editor_tree_meta.items():
-            if meta.get("type") != "match":
-                continue
-            if (
-                meta.get("tournament_path") == tournament_path
-                and int(meta.get("match_index", -1)) == match_index
-            ):
-                target_id = item_id
-                break
-        if target_id is None:
-            return
-        try:
-            self._tournament_editor_tree.selection_set(target_id)
-            self._tournament_editor_tree.focus(target_id)
-            self._tournament_editor_tree.see(target_id)
-            self._tournament_editor_tree.event_generate("<<TreeviewSelect>>")
-        except tk.TclError:
-            pass
-
-    def _focus_editor_shot(self, reference: ShotReference):
-        if self._tournament_editor_shot_listbox is None:
-            return
-        for index, (_, ref) in enumerate(self._tournament_editor_shot_items):
-            if ref == reference:
-                try:
-                    self._tournament_editor_shot_listbox.selection_clear(0, "end")
-                    self._tournament_editor_shot_listbox.selection_set(index)
-                    self._tournament_editor_shot_listbox.see(index)
-                except tk.TclError:
-                    pass
-                self._open_selected_match_shot()
-                break
-
-    def _prompt_new_match(self):
-        if self._tournament_editor_window is None:
-            return
-
-        meta = self._get_selected_editor_meta()
-        if not meta:
-            messagebox.showinfo("New Match", "Select a tournament before adding a match.")
-            return
-
-        if meta.get("type") == "match":
-            tournament_path = meta.get("tournament_path")
-        elif meta.get("type") == "tournament":
-            tournament_path = meta.get("tournament_path")
-        else:
-            messagebox.showinfo("New Match", "Select a tournament before adding a match.")
-            return
-
-        if not tournament_path:
-            messagebox.showerror("New Match", "Unable to determine tournament path.")
-            return
-
-        document = self._get_tournament_document(tournament_path)
-        if document is None:
-            messagebox.showerror("New Match", "Failed to load tournament data.")
-            return
-
-        matches = document.setdefault("matches", [])
-        default_name = f"Match {len(matches) + 1}"
-
-        match_name_input = simpledialog.askstring(
-            "New Match",
-            "Match name:",
-            initialvalue=default_name,
-            parent=self._tournament_editor_window,
-        )
-        if match_name_input is None:
-            return
-        match_name = " ".join(match_name_input.strip().split()) or default_name
-
-        inferred_one, inferred_two = infer_players_from_folder_name(match_name.replace(" ", "_"))
-        player_one = simpledialog.askstring(
-            "New Match",
-            "Player one name:",
-            initialvalue=inferred_one,
-            parent=self._tournament_editor_window,
-        )
-        if player_one is None:
-            return
-        player_two = simpledialog.askstring(
-            "New Match",
-            "Player two name:",
-            initialvalue=inferred_two,
-            parent=self._tournament_editor_window,
-        )
-        if player_two is None:
-            return
-
-        player_one = " ".join(player_one.strip().split()) or inferred_one
-        player_two = " ".join(player_two.strip().split()) or inferred_two
-
-        new_match = {
-            "name": match_name,
-            "playerOne": player_one,
-            "playerTwo": player_two,
-            "shots": [],
-        }
-        matches.append(new_match)
-
-        try:
-            with open(tournament_path, "w", encoding="utf-8") as handle:
-                json.dump(document, handle, indent=2)
-        except OSError as exc:
-            messagebox.showerror("New Match", f"Failed to save tournament:\n{exc}")
-            matches.pop()
-            return
-
-        self._tournament_documents[tournament_path] = document
-        new_match_index = len(matches) - 1
-        self._current_shot_reference = None
-
-        self.refresh_tournaments()
-        self._match_player_names[(tournament_path, new_match_index)] = (player_one, player_two)
-        self.after(0, lambda: self._focus_editor_match(tournament_path, new_match_index))
-
-    def _prompt_new_shot(self):
-        if self._tournament_editor_window is None:
-            return
-        if self._tournament_editor_active_match is None:
-            messagebox.showinfo("Add Shot", "Select a match before adding a shot.")
-            return
-
-        tournament_path, match_index = self._tournament_editor_active_match
-        document = self._get_tournament_document(tournament_path)
-        if document is None:
-            messagebox.showerror("Add Shot", "Failed to load tournament data.")
-            return
-
-        matches = document.get("matches", [])
-        if not isinstance(matches, list) or match_index >= len(matches):
-            messagebox.showerror("Add Shot", "Match reference no longer exists.")
-            return
-
-        match = matches[match_index]
-        shots = match.setdefault("shots", [])
-        default_name = f"Shot {len(shots) + 1}"
-
-        shot_name_input = simpledialog.askstring(
-            "Add Shot",
-            "Shot name:",
-            initialvalue=default_name,
-            parent=self._tournament_editor_window,
-        )
-        if shot_name_input is None:
-            return
-        shot_name = " ".join(shot_name_input.strip().split()) or default_name
-
-        current_players = (
-            match.get("playerOne", "Player 1"),
-            match.get("playerTwo", "Player 2"),
-        )
-
-        shooter_input = simpledialog.askstring(
-            "Add Shot",
-            "Shooter (playerOne/playerTwo):",
-            initialvalue="playerOne",
-            parent=self._tournament_editor_window,
-        )
-        if shooter_input is None:
-            return
-        shooter_key = shooter_input.strip().lower()
-        player_key = "playerOne"
-        if shooter_key in {"playertwo", "player_two", "player 2", "player two", "two", "p2", "player2"}:
-            player_key = "playerTwo"
-
-        base_state = {
-            "table": os.path.join(TABLE_IMAGES_DIR, "Table.png"),
-            "table_scale": 1.0,
-            "ball_scale": 0.33,
-            "table_offset": {"x": 0.0, "y": 0.0},
-            "table_rect": [0, 158, 720, 444],
-            "webcam": {"enabled": False, "opacity": 0.5, "source": 0},
-            "balls": [
-                {
-                    "name": "TwoBall",
-                    "x": 424,
-                    "y": 349,
-                    "visible": True,
-                    "path": os.path.join(BALL_IMAGES_DIR, "TwoBall.png"),
-                    "u": 0.5888888888888889,
-                    "v": 0.43018018018018017,
-                }
-            ],
-            "drawings": [],
-        }
-
-        new_shot = {
-            "name": shot_name,
-            "player": player_key,
-            "data": copy.deepcopy(base_state),
-        }
-        shots.append(new_shot)
-        new_reference = ShotReference(tournament_path, match_index, len(shots) - 1)
-
-        try:
-            with open(tournament_path, "w", encoding="utf-8") as handle:
-                json.dump(document, handle, indent=2)
-        except OSError as exc:
-            messagebox.showerror("Add Shot", f"Failed to save tournament:\n{exc}")
-            shots.pop()
-            return
-
-        self._tournament_documents[tournament_path] = document
-        self._current_shot_reference = new_reference
-
-        self.refresh_tournaments()
-        self._match_player_names[(tournament_path, match_index)] = (
-            match.get("playerOne", current_players[0]),
-            match.get("playerTwo", current_players[1]),
-        )
-
-        def focus_new_shot():
-            self._focus_editor_match(tournament_path, match_index)
-            self.after(50, lambda: self._focus_editor_shot(new_reference))
-
-        self.after(0, focus_new_shot)
-
-    def load_layout_from_path(self, source):
-        if isinstance(source, ShotReference):
-            reference = source
-            data = self._get_shot_data(reference)
-            if data is None:
-                return
-            if not self._apply_layout_to_table_canvas(data):
-                return
-            self._apply_layout_to_editor_canvas(data)
-            self._current_shot_reference = reference
-            if self._tournament_editor_save_btn is not None and self._tournament_editor_save_btn.winfo_manager():
-                self._tournament_editor_current_ref = reference
-                self._update_save_button_state(True)
-            return
-
-        if isinstance(source, str):
-            data = self._read_layout_data(source)
-            if data is None:
-                return
-            if not self._apply_layout_to_table_canvas(data):
-                return
-            self._apply_layout_to_editor_canvas(data)
-            self._current_shot_reference = None
-            if self._tournament_editor_save_btn is not None and self._tournament_editor_save_btn.winfo_manager():
-                self._tournament_editor_current_ref = None
-                self._update_save_button_state(False)
-            return
-
-        messagebox.showerror("Error", "Unsupported shot selection type.")
 
 def main():
     app = App()

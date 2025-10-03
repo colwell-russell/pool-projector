@@ -1,5 +1,5 @@
 {
-  "table": "/Users/russellcolwell/gitProjects/pool-projector/images/Table.png",
+  "table": "/Users/russellcolwell/gitProjects/pool-projector/images/table/Table.png",
   "ball_scale": 0.22,
   "table_rect": [
     0,
@@ -13,7 +13,7 @@
       "x": 205,
       "y": 262,
       "visible": true,
-      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/FiveBall.png",
+      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/balls/FiveBall.png",
       "u": 0.1908752327746741,
       "v": 0.3293051359516616
     },
@@ -22,7 +22,7 @@
       "x": 113,
       "y": 261,
       "visible": true,
-      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/OneBall.png",
+      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/balls/OneBall.png",
       "u": 0.10521415270018622,
       "v": 0.32779456193353473
     },
@@ -31,7 +31,7 @@
       "x": 136,
       "y": 261,
       "visible": true,
-      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/TwoBall.png",
+      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/balls/TwoBall.png",
       "u": 0.1266294227188082,
       "v": 0.32779456193353473
     },
@@ -40,7 +40,7 @@
       "x": 158,
       "y": 261,
       "visible": true,
-      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/ThreeBall.png",
+      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/balls/ThreeBall.png",
       "u": 0.14711359404096835,
       "v": 0.32779456193353473
     },
@@ -49,7 +49,7 @@
       "x": 181,
       "y": 262,
       "visible": true,
-      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/FourBall.png",
+      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/balls/FourBall.png",
       "u": 0.1685288640595903,
       "v": 0.3293051359516616
     },
@@ -58,7 +58,7 @@
       "x": 132,
       "y": 346,
       "visible": true,
-      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/CueBall.png",
+      "path": "/Users/russellcolwell/gitProjects/pool-projector/images/balls/CueBall.png",
       "u": 0.12290502793296089,
       "v": 0.4561933534743202
     }

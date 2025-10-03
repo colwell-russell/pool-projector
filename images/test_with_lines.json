@@ -1,5 +1,5 @@
 {
-  "table": "C:/Users/russell/Documents/gitProjects/pool-projector/images/Table.png",
+  "table": "C:/Users/russell/Documents/gitProjects/pool-projector/images/table/Table.png",
   "ball_scale": 0.3,
   "table_rect": [
     0,
@@ -13,7 +13,7 @@
       "x": 231,
       "y": 237,
       "visible": true,
-      "path": "C:/Users/russell/Documents/gitProjects/pool-projector/images/OneBall.png",
+      "path": "C:/Users/russell/Documents/gitProjects/pool-projector/images/balls/OneBall.png",
       "u": 0.21329639889196675,
       "v": 0.2934131736526946
     },
@@ -22,7 +22,7 @@
       "x": 541,
       "y": 375,
       "visible": true,
-      "path": "C:/Users/russell/Documents/gitProjects/pool-projector/images/TwoBall.png",
+      "path": "C:/Users/russell/Documents/gitProjects/pool-projector/images/balls/TwoBall.png",
       "u": 0.5,
       "v": 0.5
     }
