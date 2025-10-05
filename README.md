@@ -7,70 +7,79 @@ Supports Windows, Ubuntu Desktop, and macOS.
 
 - **Table & Balls**
   - Load a pool table image as background.
-  - Load multiple pool ball images (PNG recommended).
-  - Drag balls around, toggle visibility via checkboxes.
-  - Adjustable ball size slider (20%–200%).
+  - Load multiple pool ball images (PNG recommended) and drag them into position.
+  - Toggle ball visibility and adjust the global ball size (20%�200%).
 
 - **Drawing Tools**
   - Draw lines or arrows directly on the table.
-  - Choose stroke color and width.
-  - Undo last drawing or clear all drawings.
+  - Choose stroke color and width, undo the last stroke, or clear everything.
 
 - **Layouts**
-  - Save and load layouts to JSON (balls + drawings + sizes).
+  - Save and load layouts to JSON (balls + drawings + sizes) for repeatable drills.
 
 - **Projector Mode**
-  - Select a display/monitor from dropdown.
-  - Open a borderless, fullscreen window on that display.
-  - Table, balls, and drawings are mirrored live using table-relative coordinates.
+  - Select an external display/monitor and open a borderless, fullscreen mirror.
+  - Table, balls, and drawings stay in sync using table-relative coordinates.
+
+## Project Layout
+
+The application now ships as a proper package under `src/`:
+
+```
+src/
++-- pool_table_board.py      # Entry point / App composition
++-- config.py                # Paths, file dialogs, directory bootstrap
++-- legacy.py                # One-time migration helpers
++-- models/                  # Dataclasses (BallState, DrawingState, ShotReference)
++-- services/                # Reusable domain helpers (assets, tournaments)
++-- ui/                      # Tkinter presentation (canvas, sidebar, tournament browser)
++-- infrastructure/          # Projector window and other side-effect components
++-- utils/                   # Generic helpers (clamp, etc.)
++-- images/                  # Ball/table textures and sample layouts
++-- layouts/                 # Saved layout presets (plus Tournaments JSON docs)
+```
+
+Assets and layouts should be stored under `src/images/` and `src/layouts/` respectively so relative paths resolve when the editor or projector loads them.
 
 ## Requirements
 
 - Python 3.8+
-- Tkinter (comes with Python, install with `sudo apt install python3-tk` if missing on Ubuntu)
+- Tkinter (bundled with Python; on Ubuntu install with `sudo apt install python3-tk`)
 - Pip packages:
   ```bash
-  pip install pillow screeninfo
+  pip install -r requirements.txt
   ```
 
-## Usage
+## Setup & Usage
 
-Run the application:
+1. Create/activate a virtual environment (recommended):
+   ```bash
+   python -m venv .venv
+   # Windows PowerShell
+   .\.venv\Scripts\Activate
+   # or Unix shells
+   source .venv/bin/activate
+   ```
+2. Install dependencies: `pip install -r requirements.txt`
+3. Launch the editor from the repo root:
+   ```bash
+   python -m src.pool_table_board
+   ```
+   (Alternatively: `python src/pool_table_board.py`, or from inside `src/`: `python pool_table_board.py`.)
 
-```bash
-python3 pool_table_board.py
-```
+### Typical Workflow
+1. Load a table image (`File ? Load Table Image...`). Dialogs default to `src/images/`.
+2. Add balls from the library and drag them into position.
+3. Adjust visibility, table offsets, and ball size from the sidebar.
+4. Use drawing tools for lines/arrows.
+5. Save layouts (`File ? Save Layout...`) to `src/layouts/` for reuse.
+6. Open a projector window, select a display, and close it with `Esc` if needed.
 
-### Steps
-1. Load a table image (`File → Load Table Image…`).
-   - File dialogs default to the project's `images/` folder for quick access to assets.
-2. Load ball images (`File → Load Ball Images…`). Drag to place.
-3. Use checkboxes to toggle ball visibility.
-4. Adjust **Ball Size (%)** with the slider.
-5. Switch to **Drawing Tools** to add lines/arrows.
-6. Save or load layouts to preserve work.
-   - File dialogs default to the project's `layouts/` folder; add your presets there for quick access.
-7. Select a **Projector Display** and open a projector window.
-   - Press `Esc` inside the projector window to close it if you pick the wrong display.
+## Development Tips
 
-## Multi-Monitor Setup on Ubuntu
-
-The app uses the `screeninfo` library to detect displays.  
-Displays are listed in the sidebar like:
-
-```
-0: 1920x1080 @ (0,0)
-1: 1280x1024 @ (1920,0)
-```
-
-Choose the correct display and click **Open Projector Window**.
-
-## Development
-
-This project is structured as a single script (`pool_table_board.py`) with:
-- Object-oriented design (`BallSprite`, `PoolTableCanvas`, `DrawingLayer`, etc.)
-- Table-relative coordinate system for cross-display consistency
-- Sidebar UI for controls
+- Quick syntax check: `python -m compileall src`
+- Most logic is now testable without Tk; add new unit tests under `tests/` for services/models.
+- Avoid referencing absolute paths; rely on `config.py` helpers to keep projector sessions portable.
 
 ## License
 
