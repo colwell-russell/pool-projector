@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
 from typing import Any, Callable, Dict, List, Optional
 
+from config import BULLSEYE_TARGET_IMAGE, IMAGE_FILETYPES, IMAGES_DIR, JSON_FILETYPES, LAYOUTS_DIR
 from services import LayoutService, list_ball_assets
 from infrastructure import ProjectorWindow
 from ui.canvas import PoolTableCanvas
@@ -62,6 +63,9 @@ class Sidebar(tk.Frame):
 
         self.btn_add_ball = tk.Button(body, text="Add Selected Ball", command=self.add_selected_ball)
         self.btn_add_ball.pack(fill="x", padx=10, pady=(0, 6))
+
+        self.btn_add_target = tk.Button(body, text="Add Bullseye Target", command=self.add_bullseye_target)
+        self.btn_add_target.pack(fill="x", padx=10, pady=(0, 6))
 
         # Table size slider
         self.table_size_label = tk.Label(body, text="Table Size (%)", anchor="w", font=("Segoe UI", 10, "bold"))
@@ -378,6 +382,29 @@ class Sidebar(tk.Frame):
             self.table_canvas.add_ball(candidate, path)
         except Exception as exc:
             messagebox.showerror("Add Ball", f"Failed to add ball:\n{exc}")
+            return
+
+        self.refresh_ball_list()
+        self.table_canvas._notify()
+
+    def add_bullseye_target(self):
+        target_path = BULLSEYE_TARGET_IMAGE
+        if not target_path.exists():
+            messagebox.showerror("Add Target", "Bullseye asset is missing. Restore 'src/images/balls/BullseyeTarget.png'.")
+            return
+
+        base_name = "Bullseye"
+        existing_names = {b.name for b in self.table_canvas.balls}
+        candidate = base_name
+        index = 2
+        while candidate in existing_names:
+            candidate = f"{base_name}_{index}"
+            index += 1
+
+        try:
+            self.table_canvas.add_ball(candidate, str(target_path))
+        except Exception as exc:
+            messagebox.showerror("Add Target", f"Failed to add target:\n{exc}")
             return
 
         self.refresh_ball_list()

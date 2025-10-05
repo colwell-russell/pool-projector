@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from config import (
     BALL_IMAGES_DIR,
+    BULLSEYE_TARGET_IMAGE,
     IMAGE_FILETYPES,
     JSON_FILETYPES,
     LAYOUTS_DIR,
@@ -237,6 +238,33 @@ class App(tk.Tk):
             self._tournament_editor_canvas.add_ball(candidate, path)
         except Exception as exc:
             messagebox.showerror("Add Ball", f"Failed to add ball:\n{exc}")
+            return
+
+        self._tournament_editor_canvas.draw_layer.rerender_all()
+        self._refresh_tournament_editor_ball_names()
+
+    def _add_bullseye_target_to_shot(self):
+        if self._tournament_editor_canvas is None:
+            messagebox.showinfo("Add Target", "Open or create a shot before adding targets.")
+            return
+
+        target_path = BULLSEYE_TARGET_IMAGE
+        if not target_path.exists():
+            messagebox.showerror("Add Target", "Bullseye asset is missing. Restore 'src/images/balls/BullseyeTarget.png'.")
+            return
+
+        base_name = "Bullseye"
+        existing_names = {ball.name for ball in self._tournament_editor_canvas.balls}
+        candidate = base_name
+        index = 2
+        while candidate in existing_names:
+            candidate = f"{base_name}_{index}"
+            index += 1
+
+        try:
+            self._tournament_editor_canvas.add_ball(candidate, str(target_path))
+        except Exception as exc:
+            messagebox.showerror("Add Target", f"Failed to add target:\n{exc}")
             return
 
         self._tournament_editor_canvas.draw_layer.rerender_all()
@@ -734,6 +762,13 @@ class App(tk.Tk):
             command=self._prompt_add_ball_to_shot,
         )
         add_ball_btn.pack(fill="x", pady=(0, 4))
+
+        add_target_btn = tk.Button(
+            controls_frame,
+            text="Add Bullseye Target",
+            command=self._add_bullseye_target_to_shot,
+        )
+        add_target_btn.pack(fill="x", pady=(0, 4))
 
         add_drawing_btn = tk.Button(
             controls_frame,

@@ -4,6 +4,7 @@ from typing import List, Tuple
 SRC_DIR = Path(__file__).resolve().parent
 IMAGES_DIR = SRC_DIR / "images"
 BALL_IMAGES_DIR = IMAGES_DIR / "balls"
+BULLSEYE_TARGET_IMAGE = BALL_IMAGES_DIR / "BullseyeTarget.png"
 TABLE_IMAGES_DIR = IMAGES_DIR / "table"
 LAYOUTS_DIR = SRC_DIR / "layouts"
 TOURNAMENTS_DIR = LAYOUTS_DIR / "Tournaments"
