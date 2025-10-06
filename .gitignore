@@ -42,4 +42,4 @@ Thumbs.db
 *.log
 
 # Project specific
-*.json
+# *.json
