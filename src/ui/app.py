@@ -1840,6 +1840,7 @@ class App(tk.Tk):
             return
         player_key = shooter_key
 
+        
         base_state = {
             "table": os.path.join(TABLE_IMAGES_DIR, "Table.png"),
             "table_scale": 1.0,
@@ -1847,19 +1848,12 @@ class App(tk.Tk):
             "table_offset": {"x": 0.0, "y": 0.0},
             "table_rect": [0, 158, 720, 444],
             "webcam": {"enabled": False, "opacity": 0.5, "source": 0},
-            "balls": [
-                {
-                    "name": "TwoBall",
-                    "x": 424,
-                    "y": 349,
-                    "visible": True,
-                    "path": os.path.join(BALL_IMAGES_DIR, "TwoBall.png"),
-                    "u": 0.5888888888888889,
-                    "v": 0.43018018018018017,
-                }
-            ],
+            "balls": [],
             "drawings": [],
         }
+        if(len(shots) > 1):
+            last_shot = shots[len(shots) - 1]
+            base_state['balls'] = last_shot['data']['balls']
 
         try:
             new_reference = self.tournament_service.add_shot(
