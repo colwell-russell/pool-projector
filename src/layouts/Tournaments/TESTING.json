@@ -1,0 +1,211 @@
+{
+  "name": "TESTING",
+  "matches": [
+    {
+      "name": "Match 1",
+      "playerOne": "Match",
+      "playerTwo": "player2",
+      "racks": [
+        {
+          "name": "Rack 1",
+          "break": "Match",
+          "shots": [
+            {
+              "name": "Shot 1",
+              "player": "playerOne",
+              "data": {
+                "table": "C:\\Users\\russell\\Documents\\gitProjects\\pool-projector\\images\\table\\Table.png",
+                "table_scale": 1.0,
+                "ball_scale": 0.33,
+                "table_offset": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "table_rect": [
+                  0,
+                  158,
+                  720,
+                  444
+                ],
+                "webcam": {
+                  "enabled": false,
+                  "opacity": 0.5,
+                  "source": 0
+                },
+                "balls": [
+                  {
+                    "name": "TwoBall",
+                    "x": 424,
+                    "y": 349,
+                    "visible": true,
+                    "path": "C:\\Users\\russell\\Documents\\gitProjects\\pool-projector\\images\\balls\\TwoBall.png",
+                    "u": 0.5888888888888889,
+                    "v": 0.43018018018018017
+                  }
+                ],
+                "drawings": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rack 2",
+          "break": "Match",
+          "shots": [
+            {
+              "name": "Shot 1",
+              "player": "playerOne",
+              "data": {
+                "table": "C:\\Users\\russell\\Documents\\gitProjects\\pool-projector\\images\\table\\Table.png",
+                "table_scale": 1.0,
+                "ball_scale": 0.33,
+                "table_offset": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "table_rect": [
+                  0,
+                  66,
+                  853,
+                  526
+                ],
+                "webcam": {
+                  "enabled": false,
+                  "opacity": 0.5,
+                  "source": 0
+                },
+                "balls": [
+                  {
+                    "name": "CueBall",
+                    "x": 426,
+                    "y": 329,
+                    "visible": true,
+                    "path": "C:\\Users\\russell\\Documents\\gitProjects\\pool-projector\\images\\balls\\CueBall.png",
+                    "u": 0.49941383352872215,
+                    "v": 0.5
+                  }
+                ],
+                "drawings": []
+              }
+            },
+            {
+              "name": "Shot 2",
+              "player": "playerOne",
+              "data": {
+                "table": "C:\\Users\\russell\\Documents\\gitProjects\\pool-projector\\src\\images\\table\\Table.png",
+                "table_scale": 1.0,
+                "ball_scale": 0.33,
+                "table_offset": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "table_rect": [
+                  0,
+                  87,
+                  785,
+                  484
+                ],
+                "webcam": {
+                  "enabled": false,
+                  "opacity": 0.5,
+                  "source": 0
+                },
+                "balls": [
+                  {
+                    "name": "FourteenBall",
+                    "x": 152,
+                    "y": 176,
+                    "visible": true,
+                    "path": "C:\\Users\\russell\\Documents\\gitProjects\\pool-projector\\src\\images\\balls\\FourteenBall.png",
+                    "u": 0.19363057324840766,
+                    "v": 0.18388429752066116
+                  }
+                ],
+                "drawings": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rack 3",
+          "break": "Match",
+          "shots": [
+            {
+              "name": "Shot 1",
+              "player": "playerOne",
+              "data": {
+                "table": "C:\\Users\\russell\\Documents\\gitProjects\\pool-projector\\src\\images\\table\\Table.png",
+                "table_scale": 1.0,
+                "ball_scale": 0.33,
+                "table_offset": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "table_rect": [
+                  0,
+                  87,
+                  785,
+                  484
+                ],
+                "webcam": {
+                  "enabled": false,
+                  "opacity": 0.5,
+                  "source": 0
+                },
+                "balls": [
+                  {
+                    "name": "TwoBall",
+                    "x": 528,
+                    "y": 265,
+                    "visible": true,
+                    "path": "C:\\Users\\russell\\Documents\\gitProjects\\pool-projector\\src\\images\\balls\\TwoBall.png",
+                    "u": 0.6726114649681528,
+                    "v": 0.3677685950413223
+                  },
+                  {
+                    "name": "FourBall",
+                    "x": 392,
+                    "y": 329,
+                    "visible": true,
+                    "path": "C:\\Users\\russell\\Documents\\gitProjects\\pool-projector\\src\\images\\balls\\FourBall.png",
+                    "u": 0.49936305732484076,
+                    "v": 0.5
+                  }
+                ],
+                "drawings": [
+                  {
+                    "kind": "line",
+                    "color": "#ff0000",
+                    "width": 4,
+                    "u1": 0.6624203821656051,
+                    "v1": 0.4049586776859504,
+                    "u2": 0.35159235668789807,
+                    "v2": 0.34297520661157027
+                  },
+                  {
+                    "kind": "line",
+                    "color": "#ff0000",
+                    "width": 4,
+                    "u1": 0.3464968152866242,
+                    "v1": 0.3305785123966942,
+                    "u2": 0.38471337579617837,
+                    "v2": 0.378099173553719
+                  },
+                  {
+                    "kind": "line",
+                    "color": "#ff0000",
+                    "width": 4,
+                    "u1": 0.3579617834394904,
+                    "v1": 0.3285123966942149,
+                    "u2": 0.4267515923566879,
+                    "v2": 0.29545454545454547
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

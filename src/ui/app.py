@@ -1851,7 +1851,7 @@ class App(tk.Tk):
             "balls": [],
             "drawings": [],
         }
-        if(len(shots) > 1):
+        if(len(shots) > 0):
             last_shot = shots[len(shots) - 1]
             base_state['balls'] = last_shot['data']['balls']
 
