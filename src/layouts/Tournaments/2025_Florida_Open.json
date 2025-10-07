@@ -765,6 +765,38 @@
               }
             }
           ]
+        },
+        {
+          "name": "Rack 2",
+          "break": "ShaneVanBoeing",
+          "shots": [
+            {
+              "name": "Shot 1",
+              "player": "playerOne",
+              "data": {
+                "table": "/Users/russellcolwell/gitProjects/pool-projector/src/images/table/Table.png",
+                "table_scale": 1.0,
+                "ball_scale": 0.33,
+                "table_offset": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "table_rect": [
+                  0,
+                  158,
+                  720,
+                  444
+                ],
+                "webcam": {
+                  "enabled": false,
+                  "opacity": 0.5,
+                  "source": 0
+                },
+                "balls": [],
+                "drawings": []
+              }
+            }
+          ]
         }
       ]
     }

@@ -100,6 +100,9 @@ class App(tk.Tk):
         self._tournament_editor_remove_ball_btn: Optional[tk.Button] = None
         self._tournament_editor_remove_rack_btn: Optional[tk.Button] = None
         self._tournament_editor_remove_shot_btn: Optional[tk.Button] = None
+        self._tournament_editor_draw_mode_var: Optional[tk.StringVar] = None
+        self._tournament_editor_draw_mode_label: Optional[tk.Label] = None
+        self._tournament_editor_exit_draw_btn: Optional[tk.Button] = None
 
         self._tournaments_summary: List[Dict] = []
         self._current_shot_reference: Optional[ShotReference] = None
@@ -382,19 +385,80 @@ class App(tk.Tk):
         dialog = _PlayerSelectionDialog(parent_window, title)
         return getattr(dialog, "result", None)
 
+    def _set_tournament_draw_mode(self, tool: str) -> bool:
+        canvas = self._tournament_editor_canvas
+        if canvas is None:
+            return False
+
+        valid_tools = {"select", "line", "arrow"}
+        normalized = tool if tool in valid_tools else "select"
+
+        canvas.draw_layer.clear_preview()
+        if hasattr(canvas, "_draw_start"):
+            canvas._draw_start = None
+        canvas.tool_mode = normalized
+
+        sidebar = getattr(self, "sidebar", None)
+        if sidebar is not None:
+            try:
+                sidebar.tool_choice.set(normalized)
+                sidebar.on_tool_change()
+            except Exception:
+                pass
+
+        self._update_tournament_draw_mode_indicator()
+        return True
+
     def _prompt_add_drawing_to_shot(self):
         if self._tournament_editor_canvas is None:
-            messagebox.showinfo("Add Drawing", "Open or create a shot before adding drawings.")
+            messagebox.showinfo("Add Line", "Open or create a shot before adding lines.")
             return
 
-        self._tournament_editor_canvas.tool_mode = "line"
-        if hasattr(self, "sidebar"):
-            self.sidebar.tool_choice.set("line")
-            self.sidebar.on_tool_change()
+        self._set_tournament_draw_mode("line")
         messagebox.showinfo(
-            "Add Drawing",
+            "Add Line",
             "Drawing tool switched to Line. Click and drag on the editor canvas to sketch.",
         )
+
+    def _prompt_add_arrow_to_shot(self):
+        if self._tournament_editor_canvas is None:
+            messagebox.showinfo("Add Arrow", "Open or create a shot before adding arrows.")
+            return
+
+        self._set_tournament_draw_mode("arrow")
+        messagebox.showinfo(
+            "Add Arrow",
+            "Drawing tool switched to Arrow. Click and drag to place a directional marker.",
+        )
+
+    def _exit_tournament_draw_mode(self):
+        self._set_tournament_draw_mode("select")
+
+    def _update_tournament_draw_mode_indicator(self):
+        canvas = self._tournament_editor_canvas
+        tool = getattr(canvas, "tool_mode", "select") if canvas is not None else "select"
+        active_labels = {"line": "Line", "arrow": "Arrow"}
+        active_label = active_labels.get(tool)
+
+        var = self._tournament_editor_draw_mode_var
+        if var is not None:
+            var.set(f"Drawing mode: {active_label}" if active_label else "Drawing mode: Off")
+
+        label = self._tournament_editor_draw_mode_label
+        if label is not None:
+            if active_label == "Arrow":
+                fg_color = "#0d6efd"
+            elif active_label:
+                fg_color = "#d9534f"
+            else:
+                fg_color = "#2e8b57"
+            label.configure(fg=fg_color)
+
+        btn = self._tournament_editor_exit_draw_btn
+        if btn is not None:
+            new_state = tk.NORMAL if active_label else tk.DISABLED
+            if str(btn["state"]) != str(new_state):
+                btn.configure(state=new_state)
 
     def refresh_tournaments(self):
         self._tournaments_summary = self._load_tournaments_from_disk()
@@ -772,10 +836,33 @@ class App(tk.Tk):
 
         add_drawing_btn = tk.Button(
             controls_frame,
-            text="Add Drawing",
+            text="Add Line",
             command=self._prompt_add_drawing_to_shot,
         )
-        add_drawing_btn.pack(fill="x", pady=(0, 8))
+        add_drawing_btn.pack(fill="x", pady=(0, 4))
+
+        add_arrow_btn = tk.Button(
+            controls_frame,
+            text="Add Arrow",
+            command=self._prompt_add_arrow_to_shot,
+        )
+        add_arrow_btn.pack(fill="x", pady=(0, 8))
+
+        self._tournament_editor_draw_mode_var = tk.StringVar(value="Drawing mode: Off")
+        draw_mode_label = tk.Label(
+            controls_frame,
+            textvariable=self._tournament_editor_draw_mode_var,
+            anchor="w",
+        )
+        draw_mode_label.pack(fill="x", pady=(0, 2))
+
+        exit_draw_btn = tk.Button(
+            controls_frame,
+            text="Exit Drawing Mode",
+            command=self._exit_tournament_draw_mode,
+            state=tk.DISABLED,
+        )
+        exit_draw_btn.pack(fill="x", pady=(0, 8))
 
         tk.Label(controls_frame, text="Active Balls", anchor="w").pack(fill="x")
         self._tournament_editor_ball_remove_var = tk.StringVar()
@@ -887,6 +974,9 @@ class App(tk.Tk):
             self._tournament_editor_remove_rack_btn = None
             self._tournament_editor_remove_shot_btn = None
             self._tournament_editor_ball_catalog = []
+            self._tournament_editor_draw_mode_var = None
+            self._tournament_editor_draw_mode_label = None
+            self._tournament_editor_exit_draw_btn = None
             window.destroy()
 
         window.protocol("WM_DELETE_WINDOW", on_close)
@@ -903,7 +993,10 @@ class App(tk.Tk):
         self._tournament_editor_remove_rack_btn = remove_rack_btn
         self._tournament_editor_remove_shot_btn = remove_shot_btn
         self._tournament_editor_save_btn = save_btn
+        self._tournament_editor_draw_mode_label = draw_mode_label
+        self._tournament_editor_exit_draw_btn = exit_draw_btn
 
+        self._update_tournament_draw_mode_indicator()
         self._hide_match_detail()
         self._refresh_tournament_editor()
         self._update_tournament_ball_catalog()
@@ -1332,6 +1425,7 @@ class App(tk.Tk):
             messagebox.showerror("Error", f"Failed to display shot in editor:\n{exc}")
         else:
             self._refresh_tournament_editor_ball_names()
+            self._update_tournament_draw_mode_indicator()
 
     def _prompt_new_tournament(self):
         if self._tournament_editor_window is None:
@@ -1930,15 +2024,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
 
